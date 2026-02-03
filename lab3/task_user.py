@@ -105,7 +105,7 @@ class task_user:
                     self._ser.write("Data collection complete...\r\n")
                     self._ser.write("Printing data...\r\n")
                     self._ser.write("--------------------\r\n")
-                    self._ser.write("Time, Position\r\n")
+                    self._ser.write("Time (s), Velocity (mm/s)\r\n")
                     self._state = S3_DIS
             
             elif self._state == S3_DIS:

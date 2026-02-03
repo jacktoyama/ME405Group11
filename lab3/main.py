@@ -23,7 +23,7 @@ rightEncoder = encoder(2, 0xFFFF, 0, Pin.cpu.A1, Pin.cpu.A0)
 leftMotorGo   = Share("B",     name="Left Mot. Go Flag")
 rightMotorGo  = Share("B",     name="Right Mot. Go Flag")
 dataValues    = Queue("f", 30, name="Data Collection Buffer")
-timeValues    = Queue("L", 30, name="Time Buffer")
+timeValues    = Queue("f", 30, name="Time Buffer")
 
 # Build task class objects
 leftMotorTask  = task_motor(leftMotor,  leftEncoder,

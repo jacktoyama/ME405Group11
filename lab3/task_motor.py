@@ -66,6 +66,9 @@ class task_motor:
             
             if self._state == S0_INIT: # Init state (can be removed if unneeded)
                 # print("Initializing motor task")
+                self._enc.zero()
+                self._mot.disable()
+                self._mot.set_effort(0)
                 self._state = S1_WAIT
                 
             elif self._state == S1_WAIT: # Wait for "go command" state
@@ -87,8 +90,8 @@ class task_motor:
                 # position of the encoder. You will eventually need to capture
                 # the motor speed instead of position here.
                 self._enc.update()
-                pos = self._enc.get_position()
-                
+                vel = self._enc.get_velocity()
+                err = 250-vel
                 # Collect a timestamp to use for this sample
                 t   = ticks_us()
                 
@@ -97,16 +100,18 @@ class task_motor:
                 # poorly in practice. Note that the set position is zero. You
                 # will replace this with the output of your PID controller that
                 # uses feedback from the velocity measurement.
-                self._mot.set_effort(100 if pos < 0 else -100)
+                self._mot.enable()
+                self._mot.set_effort((err/549)*100)
                 
                 # Store the sampled values in the queues
-                self._dataValues.put(pos)
-                self._timeValues.put(ticks_diff(t, self._startTime))
+                self._dataValues.put(vel)
+                self._timeValues.put((ticks_diff(t, self._startTime))/1000000)
                 
                 # When the queues are full, data collection is over
                 if self._dataValues.full():
                     # print("Exiting motor loop")
                     self._state = S1_WAIT
                     self._goFlag.put(False)
+                    self._mot.disable()
             
             yield self._state

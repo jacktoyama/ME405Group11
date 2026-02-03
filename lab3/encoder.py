@@ -4,6 +4,7 @@
 from random import random
 from time import ticks_us, ticks_diff   # Use to get dt value in update()
 from pyb import Timer
+import math
 
 class encoder:
 
@@ -61,6 +62,7 @@ class encoder:
             self.delta += 0xFFFF + 1
         if self.delta > (0xFFFF + 1)/2:
             self.delta -= 0xFFFF + 1
+        self.delta = ((self.delta/12)/119.76)*35*2*math.pi
         self.position += self.delta
         self.prev_count = self.timer.counter()
         self.dt = ticks_diff(ticks_us(), self.ticks_prev)
@@ -74,7 +76,7 @@ class encoder:
     def get_velocity(self):
         '''Returns a measure of velocity using the the most recently updated
            value of delta as determined within the update() method'''
-        return self.delta/self.dt
+        return self.delta/(self.dt/1000000)
     
     def zero(self):
         '''Sets the present encoder position to zero and causes future updates
