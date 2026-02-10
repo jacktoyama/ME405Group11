@@ -86,7 +86,7 @@ class task_user:
 
         self._intGainFlag: int = 0
 
-        self._ser.write("User Task object instantiated")
+        self._ser.write("User Task object instantiated\r\n")
 
         
     def run(self):
@@ -97,14 +97,14 @@ class task_user:
         while True:
             
             if self._state == S0_INIT: # Init state (can be removed if unneeded)
-                self._ser.write("""+------------------------------------------------------------------------------+
-| ME 405 Romi Tuning Interface Help Menu                                       |
-+---+--------------------------------------------------------------------------+
-| h | Print help menu                                                          |
-| k | Enter new gain values                                                    |
-| s | Choose a new setpoint                                                    |
-| g | Trigger step response and print results                                  |
-+---+--------------------------------------------------------------------------+""")
+                self._ser.write("""\r\n+------------------------------------------------------------------------------+\r
+| ME 405 Romi Tuning Interface Help Menu                                       |\r
++---+--------------------------------------------------------------------------+\r
+| h | Print help menu                                                          |\r
+| k | Enter new gain values                                                    |\r
+| s | Choose a new setpoint                                                    |\r
+| g | Trigger step response and print results                                  |\r
++---+--------------------------------------------------------------------------+\r\n""")
                 self._ser.write(UI_prompt)
                 self._state = S1_CMD
                 
@@ -160,7 +160,7 @@ class task_user:
                     self._state = S0_INIT
 
             elif self._state == S4_SET:
-                while not done:
+                while not self.done:
 
                     if self._ser.any():
 
@@ -168,45 +168,45 @@ class task_user:
 
                         if char_in in self.digits:
                             self._ser.write(char_in)
-                            char_buf += char_in
+                            self.char_buf += char_in
 
-                        elif char_in == "." and "." not in char_buf:
+                        elif char_in == "." and "." not in self.char_buf:
                             self._ser.write(char_in)
-                            char_buf += char_in
+                            self.char_buf += char_in
                         
-                        elif char_in == "-" and len(char_buf) == 0:
+                        elif char_in == "-" and len(self.char_buf) == 0:
                             self._ser.write(char_in)
-                            char_buf += char_in
+                            self.char_buf += char_in
                         
-                        elif char_in == "\x7f" and len(char_buf) > 0:
+                        elif char_in == "\x7f" and len(self.char_buf) > 0:
                             self._ser.write(char_in)
-                            char_buf = char_buf[:-1]
+                            self.char_buf = self.char_buf[:-1]
                         
                         elif char_in in self.term:
                             
-                            if len(char_buf) == 0:
+                            if len(self.char_buf) == 0:
                                 self._ser.write("\r\n")
                                 self._ser.write("Value not changed\r\n")
-                                char_buf = ""
-                                done = True
+                                self.char_buf = ""
+                                self.done = True
                                 
-                            elif char_buf not in {"-", "."}:
+                            elif self.char_buf not in {"-", "."}:
                                 self._ser.write("\r\n")
-                                value = float(char_buf)
+                                value = float(self.char_buf)
                                 self.out_share.put(value)
                                 self._ser.write(f"Value set to {value}\r\n")
-                                char_buf = ""
-                                done = True
+                                self.char_buf = ""
+                                self.one = True
                 
                 if self._intGainFlag == 1:
                     #code to update integral Gain
                     self._intGainFlag = 0
                     self._state = S0_INIT
-                    done = False
+                    self.done = False
                 if self._propGainFlag == 1:
                     #code to update proportional Gain
                     self._propGainFlag = 0
                     self._state = S0_INIT
-                    done = False
+                    self.done = False
             
             yield self._state
