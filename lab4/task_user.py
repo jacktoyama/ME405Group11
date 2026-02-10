@@ -21,7 +21,8 @@ class task_user:
     on the user commands.
     '''
 
-    def __init__(self, leftMotorGo, rightMotorGo, dataValues_L, dataValues_R, timeValues):
+    def __init__(self, leftMotorGo, rightMotorGo, dataValues_L, dataValues_R, 
+                 timeValues_L, timeValues_R, gainValue, setpointValue):
         '''
         Initializes a UI task object
         
@@ -38,28 +39,33 @@ class task_user:
                                   associated with the collected encoder data
         '''
         
-        self._state: int          = S0_INIT      # The present state
+        self._state: int           = S0_INIT      # The present state
         
-        self._leftMotorGo: Share  = leftMotorGo  # The "go" flag to start data
+        self._leftMotorGo: Share   = leftMotorGo  # The "go" flag to start data
                                                  # collection from the left
                                                  # motor and encoder pair
         
-        self._rightMotorGo: Share = rightMotorGo # The "go" flag to start data
+        self._rightMotorGo: Share  = rightMotorGo # The "go" flag to start data
                                                  # collection from the right
                                                  # motor and encoder pair
         
-        self._ser: stream         = USB_VCP()    # A serial port object used to
+        self._ser: stream          = USB_VCP()    # A serial port object used to
                                                  # read character entry and to
                                                  # print output
         
-        self._dataValues_L: Queue   = dataValues_L   # A reusable buffer for data
+        self._dataValues_L: Queue  = dataValues_L   # A reusable buffer for data
                                                  # collection
         
-        self._dataValues_R: Queue   = dataValues_R   # A reusable buffer for data
+        self._dataValues_R: Queue  = dataValues_R   # A reusable buffer for data
                                                  # collection
 
-        self._timeValues: Queue   = timeValues   # A reusable buffer for time
+        self._timeValues_L: Queue  = timeValues_L   # A reusable buffer for time
                                                  # stamping collected data
+                                                 
+        self._timeValues_R: Queue  = timeValues_R   # A reusable buffer for time
+                                                 # stamping collected data
+        self._gainValue: Share     = gainValue
+        self._setpointValue: Share = setpointValue
         
         
         # added variables for lab4
@@ -84,7 +90,9 @@ class task_user:
 
         self._propGainFlag: int = 0
 
-        self._intGainFlag: int = 0
+        self._setpointFlag: int = 0
+        self._gainValue.put(100/549)
+        self._setpointValue.put(250)
 
         self._ser.write("User Task object instantiated\r\n")
 
@@ -124,12 +132,15 @@ class task_user:
                         self._ser.write("Data collecting... \r\n")
                         self._state = S2_COL
                     elif inChar in {"k", "K"}:
+                        self._ser.write("Input desired PROPORTIONAL gain:\r\n")
                         self._propGainFlag = 1
                         self._state = S4_SET
                     elif inChar in {"s", "S"}:
-                        self._intGainFlag = 1
+                        self._ser.write("Input desired velocity setpoint (mm/s):\r\n")
+                        self._setpointFlag = 1
                         self._state = S4_SET
                     elif inChar in {"h", "H"}:
+                        self._ser.write("Printing help menu:\r\n")
                         self._state = S0_INIT
                     else: 
                         self._ser.write("Invalid command\r\n")
@@ -147,14 +158,14 @@ class task_user:
                     self._ser.write("Data collection complete...\r\n")
                     self._ser.write("Printing data...\r\n")
                     self._ser.write("--------------------\r\n")
-                    self._ser.write("Time (s), Velocity_L (mm/s), Velocity_R (mm/s)\r\n")
+                    self._ser.write("Time_L (s), Velocity_L (mm/s), Time_R (s), Velocity_R (mm/s)\r\n")
                     self._state = S3_DIS
             
             elif self._state == S3_DIS:
                 # While data remains in the buffer, print that data in a command
                 # separated format. Otherwise, the data collection is finished.
                 if self._dataValues_R.any() or self._dataValues_L.any():
-                    self._ser.write(f"{self._timeValues.get()},{self._dataValues_L.get()},\r\n,{self._dataValues_R.get()},\r\n")
+                    self._ser.write(f"{self._timeValues_L.get()},{self._dataValues_L.get()},{self._timeValues_R.get()},{self._dataValues_R.get()},\r\n")
                 else:
                     self._ser.write("--------------------\r\n")
                     self._state = S0_INIT
@@ -196,16 +207,18 @@ class task_user:
                                 self.out_share.put(value)
                                 self._ser.write(f"Value set to {value}\r\n")
                                 self.char_buf = ""
-                                self.one = True
+                                self.done = True
                 
-                if self._intGainFlag == 1:
+                if self._propGainFlag == 1:
                     #code to update integral Gain
-                    self._intGainFlag = 0
+                    self._propGainFlag = 0
+                    self._gainValue.put(value)
                     self._state = S0_INIT
                     self.done = False
-                if self._propGainFlag == 1:
+                if self._setpointFlag == 1:
                     #code to update proportional Gain
-                    self._propGainFlag = 0
+                    self._setpointFlag = 0
+                    self._setpointValue.put(value)
                     self._state = S0_INIT
                     self.done = False
             

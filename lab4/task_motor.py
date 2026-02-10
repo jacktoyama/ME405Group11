@@ -21,7 +21,8 @@ class task_motor:
 
     def __init__(self,
                  mot: motor_driver, enc: encoder,
-                 goFlag: Share, dataValues: Queue, timeValues: Queue):
+                 goFlag: Share, dataValues: Queue, timeValues: Queue,
+                 gain: Share, setpoint: Share):
         '''
         Initializes a motor task object
         
@@ -54,6 +55,9 @@ class task_motor:
         
         self._startTime: int    = 0          # The start time (in microseconds)
                                              # for a batch of collected data
+        
+        self._gain: Share       = gain
+        self._setpoint: Share   = setpoint
         
         print("Motor Task object instantiated")
         
@@ -91,7 +95,7 @@ class task_motor:
                 # the motor speed instead of position here.
                 self._enc.update()
                 vel = self._enc.get_velocity()
-                err = 250-vel
+                err = self._setpoint.get()-vel
                 # Collect a timestamp to use for this sample
                 t   = ticks_us()
                 
@@ -101,15 +105,16 @@ class task_motor:
                 # will replace this with the output of your PID controller that
                 # uses feedback from the velocity measurement.
                 self._mot.enable()
-                self._mot.set_effort((err/549)*100)
+                self._mot.set_effort(err*self._gain.get())
                 
                 # Store the sampled values in the queues
                 self._dataValues.put(vel)
                 self._timeValues.put((ticks_diff(t, self._startTime))/1000000)
+                #print(str(self._dataValues.full()))
                 
                 # When the queues are full, data collection is over
                 if self._dataValues.full():
-                    # print("Exiting motor loop")
+                    #print("Exiting motor loop")
                     self._state = S1_WAIT
                     self._goFlag.put(False)
                     self._mot.disable()

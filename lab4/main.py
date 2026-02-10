@@ -22,15 +22,22 @@ rightEncoder = encoder(2, 0xFFFF, 0, Pin.cpu.A1, Pin.cpu.A0)
 # Build shares and queues
 leftMotorGo   = Share("B",     name="Left Mot. Go Flag")
 rightMotorGo  = Share("B",     name="Right Mot. Go Flag")
-dataValues    = Queue("f", 50, name="Data Collection Buffer")
-timeValues    = Queue("f", 50, name="Time Buffer")
+gainValue     = Share("f",     name="Gain Value")
+setpointValue = Share("f",     name="Setpoint Value")
+dataValues_L  = Queue("f", 50, name="Data Collection Buffer Left")
+dataValues_R  = Queue("f", 50, name="Data Collection Buffer Right")
+timeValues_L  = Queue("f", 50, name="Time Buffer Left")
+timeValues_R  = Queue("f", 50, name="Time Buffer Right")
 
 # Build task class objects
 leftMotorTask  = task_motor(leftMotor,  leftEncoder,
-                            leftMotorGo, dataValues, timeValues)
+                            leftMotorGo, dataValues_L, timeValues_L, gainValue,
+                            setpointValue)
 rightMotorTask = task_motor(rightMotor, rightEncoder,
-                            rightMotorGo, dataValues, timeValues)
-userTask = task_user(leftMotorGo, rightMotorGo, dataValues, timeValues)
+                            rightMotorGo, dataValues_R, timeValues_R, gainValue,
+                            setpointValue)
+userTask = task_user(leftMotorGo, rightMotorGo, dataValues_L, dataValues_R,
+                     timeValues_L, timeValues_R, gainValue, setpointValue)
 
 # Add tasks to task list
 task_list.append(Task(leftMotorTask.run, name="Left Mot. Task",
