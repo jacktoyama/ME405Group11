@@ -8,12 +8,6 @@ from gc           import collect
 from pyb import Pin
 
 # Build all driver objects first
-"""leftMotor    = motor_driver()
-rightMotor   = motor_driver()
-leftEncoder  = encoder()
-rightEncoder = encoder()"""
-
-# test implementation (Jack)
 leftMotor    = motor_driver(3, 20000, 1, Pin.cpu.B4, Pin.cpu.B5, Pin.cpu.B3)
 rightMotor   = motor_driver(4, 20000, 1, Pin.cpu.B6, Pin.cpu.A7, Pin.cpu.A6)
 leftEncoder  = encoder(1, 0xFFFF, 0, Pin.cpu.A9, Pin.cpu.A8)
