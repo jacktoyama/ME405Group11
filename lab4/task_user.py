@@ -113,33 +113,33 @@ class task_user:
 | s | Choose a new setpoint                                                    |\r
 | g | Trigger step response and print results                                  |\r
 +---+--------------------------------------------------------------------------+\r\n""")
-                self._ser.write(UI_prompt)
+                #self._ser.write(UI_prompt)
                 self._state = S1_CMD
                 
             elif self._state == S1_CMD: # Wait for UI commands
                 # Wait for at least one character in serial buffer
                 if self._ser.any():
                     # Read the character and decode it into a string
-                    inChar = self._ser.read(1).decode()
+                    inChar = self._ser.read(2).decode()
                     # If the character is an upper or lower case "l", start data
                     # collection on the left motor and if it is an "r", start
                     # data collection on the right motor
-                    if inChar in {"g", "G"}:
+                    if inChar in {"g\n", "G\n"}:
                         self._ser.write(f"{inChar}\r\n")
                         self._leftMotorGo.put(True)
                         self._rightMotorGo.put(True)
                         self._ser.write("Step response triggered...\r\n")
                         self._ser.write("Data collecting... \r\n")
                         self._state = S2_COL
-                    elif inChar in {"k", "K"}:
+                    elif inChar in {"k\n", "K\n"}:
                         self._ser.write("Input desired PROPORTIONAL gain:\r\n")
                         self._propGainFlag = 1
                         self._state = S4_SET
-                    elif inChar in {"s", "S"}:
+                    elif inChar in {"s\n", "S\n"}:
                         self._ser.write("Input desired velocity setpoint (mm/s):\r\n")
                         self._setpointFlag = 1
                         self._state = S4_SET
-                    elif inChar in {"h", "H"}:
+                    elif inChar in {"h\n", "H\n"}:
                         self._ser.write("Printing help menu:\r\n")
                         self._state = S0_INIT
                     else: 

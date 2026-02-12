@@ -4,9 +4,6 @@ import time
 # run commands like in putty
 # when g is run, data should be saved to a csv and automaticlally turned into a plot
 
-import serial
-import time
-
 ser = serial.Serial(
     port="COM4",
     baudrate=115200,
@@ -27,10 +24,17 @@ try:
         ser.write((cmd + "\n").encode())
 
         # --- read STM32 response ---
-        time.sleep(0.05)
+        time.sleep(1.1)
         while ser.in_waiting:
             line = ser.readline().decode(errors="ignore").strip()
             print(line)
+
+        #check for csv-esque format read
+        #create csv
+        #write output until no longer csv-esque
+        #run visualizer on that script
+        #save output
+        # both csv and output png to /collectionLog/
 
 except KeyboardInterrupt:
     print("\nExiting...")
