@@ -213,13 +213,29 @@ class task_user:
                     #code to update integral Gain
                     self._propGainFlag = 0
                     self._gainValue.put(value)
-                    self._state = S0_INIT
+                    self._state = S1_CMD
                     self.done = False
-                if self._setpointFlag == 1:
+                    self._ser.write("""\r\n+------------------------------------------------------------------------------+\r
+| ME 405 Romi Tuning Interface Help Menu                                       |\r
++---+--------------------------------------------------------------------------+\r
+| h | Print help menu                                                          |\r
+| k | Enter new gain values                                                    |\r
+| s | Choose a new setpoint                                                    |\r
+| g | Trigger step response and print results                                  |\r
++---+--------------------------------------------------------------------------+\r\n""")
+                elif self._setpointFlag == 1:
                     #code to update proportional Gain
                     self._setpointFlag = 0
                     self._setpointValue.put(value)
-                    self._state = S0_INIT
+                    self._state = S1_CMD
                     self.done = False
+                    self._ser.write("""\r\n+------------------------------------------------------------------------------+\r
+| ME 405 Romi Tuning Interface Help Menu                                       |\r
++---+--------------------------------------------------------------------------+\r
+| h | Print help menu                                                          |\r
+| k | Enter new gain values                                                    |\r
+| s | Choose a new setpoint                                                    |\r
+| g | Trigger step response and print results                                  |\r
++---+--------------------------------------------------------------------------+\r\n""")
             
             yield self._state
