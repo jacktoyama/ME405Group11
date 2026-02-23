@@ -12,6 +12,7 @@ S1_CMD  = micropython.const(1)  # Wait for a command character
 S2_COL  = micropython.const(2)  # Wait for data collection to finish
 S3_DIS  = micropython.const(3)  # Stream collected data out over serial
 S4_SET  = micropython.const(4)  # Read a numeric value from the user
+S5_RUN  = micropython.const(5)  # Run line following
 
 HELP_MENU = (
     "\r\n+------------------------------------------------------------------------------+\r\n"
@@ -106,6 +107,9 @@ class task_user:
                     elif in_char in {"h\n", "H\n"}:
                         self._state = S0_INIT
 
+                    elif in_char in {"m\n", "M\n"}:
+                        self._state = S5_RUN
+
                     else:
                         self._println("Invalid command")
                         self._state = S0_INIT
@@ -162,5 +166,22 @@ class task_user:
                             self._apply_setting(float(buf))
 
                         self._state = S0_INIT  # Return to help menu after either outcome
+
+            elif self._state == S5_RUN:
+
+                # Read line position from sensor
+                # if centroid < 0
+                    # increase left motor setpoint
+                    # #decrease right motor setpoint
+                # if centroid > 0
+                    # decrease left motor setpoint
+                    # increase right motor setpoint
+
+                # if any characters are written to the buffer, stop line following
+                if self._ser.any():
+                    self._ser.read(2)  # consume the character
+                    self._println("Line following stopped.")
+                    self._state = S0_INIT
+                
 
             yield self._state
