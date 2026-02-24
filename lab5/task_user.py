@@ -13,6 +13,8 @@ S2_COL  = micropython.const(2)  # Wait for data collection to finish
 S3_DIS  = micropython.const(3)  # Stream collected data out over serial
 S4_SET  = micropython.const(4)  # Read a numeric value from the user
 S5_RUN  = micropython.const(5)  # Run line following
+S6_CALW  = micropython.const(6)  # Callibrate white
+S7_CALB  = micropython.const(7)  # Callibrate black
 
 HELP_MENU = (
     "\r\n+------------------------------------------------------------------------------+\r\n"
@@ -22,6 +24,7 @@ HELP_MENU = (
     "| k | Enter new gain values                                                    |\r\n"
     "| s | Choose a new setpoint                                                    |\r\n"
     "| g | Trigger step response and print results                                  |\r\n"
+    "| c | Calibrate line sensor                                                    |\r\n"
     "| m | Start line following                                                     |\r\n"
     "+---+--------------------------------------------------------------------------+\r\n"
 )
@@ -108,7 +111,11 @@ class task_user:
                         self._state = S0_INIT
 
                     elif in_char in {"m\n", "M\n"}:
+                        self._println("Line following starting...")
                         self._state = S5_RUN
+
+                    elif in_char in {"c\n", "C\n"}:
+                        self._state = S6_CALW
 
                     else:
                         self._println("Invalid command")
@@ -168,7 +175,7 @@ class task_user:
                         self._state = S0_INIT  # Return to help menu after either outcome
 
             elif self._state == S5_RUN:
-
+                
                 # Read line position from sensor
                 # if centroid < 0
                     # increase left motor setpoint
@@ -182,6 +189,22 @@ class task_user:
                     self._ser.read(2)  # consume the character
                     self._println("Line following stopped.")
                     self._state = S0_INIT
-                
+
+            elif self._state == S6_CALW:
+
+                self._println("Place line sensor on white, press send any letter when placed")
+                if self._ser.any():
+                    self._ser.read(2)  # consume the character
+                    # CALLIBRATE WHITE HERE
+                    self._println("White calibration complete, place line sensor on black and send another char")
+                    self._state = S7_CALB
+
+            elif self._state == S7_CALB:
+
+                if self._ser.any():
+                    self._ser.read(2)  # consume the character
+                    # CALLIBRATE BLACK HERE
+                    self._println("Black calibration complete")
+                    self._state = S0_INIT
 
             yield self._state
