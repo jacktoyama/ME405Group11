@@ -5,6 +5,7 @@
 from pyb import USB_VCP
 from task_share import Share, BaseShare
 import micropython
+from utime import ticks_ms, ticks_diff
 
 # --- State constants ---
 S0_INIT = micropython.const(0)  # Print help menu
@@ -42,7 +43,7 @@ class task_user:
     def __init__(self, leftMotorGo, rightMotorGo,
                  dataValues_L, dataValues_R,
                  timeValues_L, timeValues_R,
-                 gainValue, setpointValue):
+                 gainValue, setpointLeft, setpointRight, lineSensor, stepResponse):
         self._state = S0_INIT
 
         self._leftMotorGo   = leftMotorGo
@@ -52,7 +53,12 @@ class task_user:
         self._timeValues_L  = timeValues_L
         self._timeValues_R  = timeValues_R
         self._gainValue     = gainValue
-        self._setpointValue = setpointValue
+        self._set_internal  = 250
+        self._setpointLeft  = setpointLeft
+        self._setpointRight = setpointRight
+        self._lineSensor    = lineSensor
+        self._centroid      = 0
+        self._stepResponse  = stepResponse
 
         self._ser = USB_VCP()
 
@@ -60,9 +66,12 @@ class task_user:
         self._setting_key = None  # Tracks which value we're editing: "gain" or "setpoint"
 
         self._gainValue.put(100 / 549)
-        self._setpointValue.put(250)
+        self._setpointLeft.put(self._set_internal)
+        self._setpointRight.put(self._set_internal)
 
         self._ser.write("User Task object instantiated\r\n")
+
+        self._startTime = 0
 
     def _println(self, text=""):
         self._ser.write(text + "\r\n")
@@ -72,7 +81,9 @@ class task_user:
             self._gainValue.put(value)
             self._println(f"Gain set to {value}")
         elif self._setting_key == "setpoint":
-            self._setpointValue.put(value)
+            self._set_internal = value
+            self._setpointLeft.put(self._set_internal)
+            self._setpointRight.put(self._set_internal)
             self._println(f"Setpoint set to {value} mm/s")
         self._setting_key = None
 
@@ -91,6 +102,7 @@ class task_user:
                     if in_char in {"g\n", "G\n"}:
                         self._leftMotorGo.put(True)
                         self._rightMotorGo.put(True)
+                        self._stepResponse.put(True)
                         self._println("Step response triggered...")
                         self._println("Data collecting...")
                         self._state = S2_COL
@@ -111,10 +123,14 @@ class task_user:
                         self._state = S0_INIT
 
                     elif in_char in {"m\n", "M\n"}:
+                        self._leftMotorGo.put(True)
+                        self._rightMotorGo.put(True)
                         self._println("Line following starting...")
+                        self._startTime = ticks_ms()
                         self._state = S5_RUN
 
                     elif in_char in {"c\n", "C\n"}:
+                        self._println("Place line sensor on white, press send any letter when placed")
                         self._state = S6_CALW
 
                     else:
@@ -128,6 +144,7 @@ class task_user:
                 if not self._leftMotorGo.get() and not self._rightMotorGo.get():
                     self._println("Data collection complete...")
                     self._println("Printing data...")
+                    self._stepResponse.put(False)
                     self._println("--------------------")
                     self._println("Time_L (s), Velocity_L (mm/s), Time_R (s), Velocity_R (mm/s)")
                     self._state = S3_DIS
@@ -175,27 +192,30 @@ class task_user:
                         self._state = S0_INIT  # Return to help menu after either outcome
 
             elif self._state == S5_RUN:
-                
-                # Read line position from sensor
-                # if centroid < 0
-                    # increase left motor setpoint
-                    # #decrease right motor setpoint
-                # if centroid > 0
-                    # decrease left motor setpoint
-                    # increase right motor setpoint
+                self._centroid = self._lineSensor.findCentroid()# Read line position from sensor
+                #self._println(f"Centroid is {self._centroid} mm")
+                self._setpointLeft.put(self._set_internal+self._centroid*3.5)
+                self._setpointRight.put(self._set_internal-self._centroid*3.5)
+                if ticks_ms() % 100 == 0:
+                    centroid_print = str(self._centroid)
+                    t = str(ticks_diff(ticks_ms(), self._startTime))
+                    line = centroid_print + ", " + t
+                    self._println(line)
+
 
                 # if any characters are written to the buffer, stop line following
                 if self._ser.any():
                     self._ser.read(2)  # consume the character
+                    self._leftMotorGo.put(False)
+                    self._rightMotorGo.put(False)
                     self._println("Line following stopped.")
                     self._state = S0_INIT
 
             elif self._state == S6_CALW:
 
-                self._println("Place line sensor on white, press send any letter when placed")
                 if self._ser.any():
                     self._ser.read(2)  # consume the character
-                    # CALLIBRATE WHITE HERE
+                    self._lineSensor.calwhite() # CALLIBRATE WHITE HERE
                     self._println("White calibration complete, place line sensor on black and send another char")
                     self._state = S7_CALB
 
@@ -203,7 +223,7 @@ class task_user:
 
                 if self._ser.any():
                     self._ser.read(2)  # consume the character
-                    # CALLIBRATE BLACK HERE
+                    self._lineSensor.calblack # CALLIBRATE BLACK HERE
                     self._println("Black calibration complete")
                     self._state = S0_INIT
 
