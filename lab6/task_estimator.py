@@ -82,8 +82,8 @@ class task_observer:
                  uR_share:       Share,
                  sL_share:       Share,
                  sR_share:       Share,
-                 psi_share:      Share,
-                 psi_dot_share:  Share,):
+                 myIMU
+                 ):
         '''
         Args:
             uL_share        -- Share holding current left motor effort [V]
@@ -94,15 +94,14 @@ class task_observer:
             psi_dot_share   -- Share holding IMU yaw rate [rad/s]
 
         '''
+        
         self._state = S0_INIT
-
+        self._imu       = myIMU
         # --- Input shares (read by this task) ---
         self._uL       = uL_share
         self._uR       = uR_share
         self._sL       = sL_share
         self._sR       = sR_share
-        self._psi      = psi_share
-        self._psi_dot  = psi_dot_share
 
 
         # State estimate vector x_hat = [S, psi, omegaL, omegaR]^T (4x1)
@@ -138,13 +137,15 @@ class task_observer:
                 uL = self._uL.get()
                 uR = self._uR.get()
 
-                # --- 2. Read measurements y = [sL, sR, psi, psi_dot] from shares ---
+                # --- 2. Read measurements y = [sL, sR] from shares ---
                 sL      = self._sL.get()
                 sR      = self._sR.get()
-                psi     = self._psi.get()
-                psi_dot = self._psi_dot.get()
+                
+                # --- 3. Read measurements from IMU
+                psi     = self.imu_.get_euler_angles()
+                psi_dot = self.imu_.get_ang_velocity()
 
-                # --- 3. Build augmented input vector u_tilde (6x1) ---
+                # --- 4. Build augmented input vector u_tilde (6x1) ---
                 # u_tilde = [uL, uR, sL, sR, psi, psi_dot]^T
                 u_tilde = np.array([[uL],
                                     [uR],
@@ -153,15 +154,9 @@ class task_observer:
                                     [psi],
                                     [psi_dot]])
 
-                # --- 4. Observer update: x_hat[k+1] = Ad*x_hat[k] + Bd_tilde*u_tilde ---
+                # --- 5. Observer update: x_hat[k+1] = Ad*x_hat[k] + Bd_tilde*u_tilde ---
                 self._x_hat = (np.dot(Ad, self._x_hat) +
                                np.dot(Bd_tilde, u_tilde))
-
-                # --- 5. Write estimated states to output shares ---
-                self._S_hat.put(self._x_hat[0][0])
-                self._psi_hat.put(self._x_hat[1][0])
-                self._omegaL_hat.put(self._x_hat[2][0])
-                self._omegaR_hat.put(self._x_hat[3][0])
 
                 # --- 6. Print estimated output y_hat every 500 ms ---
                 now = ticks_ms()

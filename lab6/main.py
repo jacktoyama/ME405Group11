@@ -6,7 +6,9 @@ from task_user    import task_user
 from task_share   import Share, Queue, show_all
 from cotask       import Task, task_list
 from gc           import collect
-from pyb import Pin
+from pyb import Pin, I2C
+from imu_driver import IMU
+from utime import sleep_ms
 from task_estimator import task_observer
 
 # Build all driver objects first
@@ -15,6 +17,11 @@ rightMotor   = motor_driver(4, 20000, 1, Pin.cpu.B6, Pin.cpu.A7, Pin.cpu.A6)
 leftEncoder  = encoder(1, 0xFFFF, 0, Pin.cpu.A9, Pin.cpu.A8)
 rightEncoder = encoder(2, 0xFFFF, 0, Pin.cpu.A1, Pin.cpu.A0)
 myLineSensor = linesensor((Pin.cpu.C4, Pin.cpu.A4, Pin.cpu.B0, Pin.cpu.C1, Pin.cpu.C0, Pin.cpu.C2, Pin.cpu.C3), 8)
+
+# Set up I2C for IMU
+i2c1 = I2C(1, I2C.CONTROLLER, baudrate=400000)  # B8=SCL, B9=SDA
+sleep_ms(800)                                        # Wait for BNO055 to boot
+myIMU = IMU(i2c1, 0x28)                           # 0x28 is default BNO055 address
 
 # Build shares and queues
 leftMotorGo   = Share("B",     name="Left Mot. Go Flag")
@@ -32,8 +39,7 @@ uL             = Share("f", name="Left Motor Effort")
 uR             = Share("f", name="Right Motor Effort")
 sL             = Share("f", name="Left Wheel Arc Length")
 sR             = Share("f", name="Right Wheel Arc Length")
-psi            = Share("f", name="IMU Heading (psi)")
-psi_dot        = Share("f", name="IMU Yaw Rate (psi_dot)")
+
 
 
 # Build task class objects
@@ -51,7 +57,7 @@ userTask = task_user(leftMotorGo, rightMotorGo,
                      gainValue, setpointLeft, setpointRight,
                      myLineSensor, stepResponse)
 # psi and psi dot come from IMU, voltage and arc from motor task
-observerTask = task_observer(uL, uR, sL, sR, psi, psi_dot)
+observerTask = task_observer(uL, uR, sL, sR, myIMU)
 
 # Add tasks to task list
 task_list.append(Task(leftMotorTask.run, name="Left Mot. Task",
