@@ -23,8 +23,11 @@ from utime import ticks_ms, ticks_diff
 import micropython
 
 # --- State constants ---
-S0_INIT = micropython.const(0)  # Initialize state vector and matrices
-S1_RUN  = micropython.const(1)  # Run observer update every task period
+S0_INIT = micropython.const(0)  # Initialize state vector, matrices, set IMU mode
+S1_CAL  = micropython.const(1)  # Either get and set values from calibration.txt,
+                                # or wait for calibration byte to be fully true
+                                # and then create calibration.txt
+S2_RUN  = micropython.const(2)  # Run observer update every task period
 
 # -------------------------------------------------------------------------
 # Paste the matrices output by your MATLAB script here.
@@ -129,9 +132,18 @@ class task_observer:
                 # Reset state estimate to zero on startup
                 self._x_hat = np.array([[0.0], [0.0], [0.0], [0.0]])
                 self._last_print_ms = ticks_ms()
-                self._state = S1_RUN
+                self._state = S2_RUN
 
-            elif self._state == S1_RUN:
+            elif self._state == S1_CAL:
+                # Check if calibration.txt exists, if not calibrate and create it
+                # if calibration.txt exists:
+
+                sys, gyr, acc, mag = self._imu.get_cal_status()
+                if (sys & gyr & acc & mag) == true:
+                    # create calibration.txt using all values from self._imu.get_cal_coeff()
+                    self._state = S2_RUN
+
+            elif self._state == S2_RUN:
 
                 # --- 1. Read inputs u = [uL, uR] from shares ---
                 uL = self._uL.get()
