@@ -154,8 +154,8 @@ class task_observer:
                 sR      = self._sR.get()
                 
                 # --- 3. Read measurements from IMU
-                psi     = self.imu_.get_euler_angles()
-                psi_dot = self.imu_.get_ang_velocity()
+                psi     = self._imu.get_euler_angles()
+                psi_dot = self._imu.get_ang_velocity()
 
                 # --- 4. Build augmented input vector u_tilde (6x1) ---
                 # u_tilde = [uL, uR, sL, sR, psi, psi_dot]^T

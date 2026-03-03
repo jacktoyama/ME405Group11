@@ -33,22 +33,22 @@ except:
     print("Move Romi around until all calibration values reach 3.")
     
     # Stay in IMU mode so calibration can happen
-    myIMU.change_mode("IMU")
+    myIMU.change_mode("NDOF")
+    sleep_ms(20)
     
     # Wait until fully calibrated (sys, gyro, accel all at 3)
     while True:
         sys, gyr, acc, mag = myIMU.get_cal_status()
-        print(f"SYS:{sys} GYR:{gyr} ACC:{acc}")
-        if sys and gyr and acc:
+        print(f"SYS:{sys} GYR:{gyr} ACC:{acc} MAG:{mag}")
+        if gyr == 3 and acc == 3 and mag == 3:
             print("Calibration complete! Saving to file...")
             break
         sleep_ms(500)
-    
     myIMU.save_cal_to_file()
     print("Calibration saved to calibration.txt")
 
 myIMU.change_mode("IMU")
-
+sleep_ms(20)
 # Build shares and queues
 leftMotorGo   = Share("B",     name="Left Mot. Go Flag")
 rightMotorGo  = Share("B",     name="Right Mot. Go Flag")
