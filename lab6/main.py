@@ -19,9 +19,35 @@ rightEncoder = encoder(2, 0xFFFF, 0, Pin.cpu.A1, Pin.cpu.A0)
 myLineSensor = linesensor((Pin.cpu.C4, Pin.cpu.A4, Pin.cpu.B0, Pin.cpu.C1, Pin.cpu.C0, Pin.cpu.C2, Pin.cpu.C3), 8)
 
 # Set up I2C for IMU
-i2c1 = I2C(1, I2C.CONTROLLER, baudrate=400000)  # B8=SCL, B9=SDA
-sleep_ms(800)                                        # Wait for BNO055 to boot
+sleep_ms(5000)
+i2c1 = I2C(1, I2C.CONTROLLER, baudrate=400000)
+sleep_ms(5000)
+print(i2c1.scan())
 myIMU = IMU(i2c1, 0x28)                           # 0x28 is default BNO055 address
+
+try:
+    myIMU.load_cal_from_file()
+    print("IMU calibration loaded from file.")
+except:
+    print("No calibration file found. Starting manual calibration...")
+    print("Move Romi around until all calibration values reach 3.")
+    
+    # Stay in IMU mode so calibration can happen
+    myIMU.change_mode("IMU")
+    
+    # Wait until fully calibrated (sys, gyro, accel all at 3)
+    while True:
+        sys, gyr, acc, mag = myIMU.get_cal_status()
+        print(f"SYS:{sys} GYR:{gyr} ACC:{acc}")
+        if sys and gyr and acc:
+            print("Calibration complete! Saving to file...")
+            break
+        sleep_ms(500)
+    
+    myIMU.save_cal_to_file()
+    print("Calibration saved to calibration.txt")
+
+myIMU.change_mode("IMU")
 
 # Build shares and queues
 leftMotorGo   = Share("B",     name="Left Mot. Go Flag")

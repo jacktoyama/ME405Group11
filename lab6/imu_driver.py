@@ -1,5 +1,7 @@
 from pyb import I2C
 import struct
+from utime import sleep_ms
+
 
 class IMU:
     def __init__(self, I2C, addr):
@@ -25,6 +27,8 @@ class IMU:
             self.i2c.mem_write(0b1011, self.i2c_addr, 0x3D)
         elif mode == "NDOF":
             self.i2c.mem_write(0b1100, self.i2c_addr, 0x3D)
+        sleep_ms(20)  # give the IMU time to switch modes
+
 
     def get_cal_status(self):
         '''Retrieve and parse the calibration byte of the IMU.\n
@@ -66,3 +70,17 @@ class IMU:
         self.i2c.mem_read(buf, self.i2c_addr, 0x14)
         (gyr_x, gyr_y, gyr_z) = struct.unpack("<hhh", buf)
         return gyr_x, gyr_y, gyr_z
+    
+# testing purposes
+    def save_cal_to_file(self, filename="calibration.txt"):
+        '''Read calibration coefficients from the IMU and save them to a file.'''
+        coeffs = self.get_cal_coeff()
+        with open(filename, "w") as f:
+            f.write(",".join(str(c) for c in coeffs))
+
+    def load_cal_from_file(self, filename="calibration.txt"):
+        '''Load calibration coefficients from a file and write them to the IMU.'''
+        with open(filename, "r") as f:
+            data = f.read().strip().split(",")
+        coeffs = [int(x) for x in data]
+        self.set_cal_coeff(*coeffs)

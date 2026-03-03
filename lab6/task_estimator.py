@@ -139,7 +139,7 @@ class task_observer:
                 # if calibration.txt exists:
 
                 sys, gyr, acc, mag = self._imu.get_cal_status()
-                if (sys & gyr & acc & mag) == true:
+                if (sys & gyr & acc & mag) == True:
                     # create calibration.txt using all values from self._imu.get_cal_coeff()
                     self._state = S2_RUN
 
