@@ -13,6 +13,8 @@ ser = serial.Serial(
 time.sleep(2)
 print("Connected. Reading from STM32...")
 
+ser.write(("m\n").encode())
+
 try:
     while True:
         if ser.in_waiting:

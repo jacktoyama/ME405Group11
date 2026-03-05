@@ -119,7 +119,7 @@ class task_motor:
                 # effort is error * gain converted from percent to voltage
                 self._effortShare.put(abs(effort* 3.1 / 100))
                 # arc length is encoder ticks * wheel radius
-                self._arcLengthShare.put(self._enc.get_position() * 35)
+                self._arcLengthShare.put(self._enc.get_position())
                 
                 # Store the sampled values in the queues
                 if self._stepResponse.get():

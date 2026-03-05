@@ -27,6 +27,7 @@ HELP_MENU = (
     "| g | Trigger step response and print results                                  |\r\n"
     "| c | Calibrate line sensor                                                    |\r\n"
     "| m | Start line following                                                     |\r\n"
+    "| i | Run IMU check                                                            |\r\n"
     "+---+--------------------------------------------------------------------------+\r\n"
 )
 
@@ -43,7 +44,7 @@ class task_user:
     def __init__(self, leftMotorGo, rightMotorGo,
                  dataValues_L, dataValues_R,
                  timeValues_L, timeValues_R,
-                 gainValue, setpointLeft, setpointRight, lineSensor, stepResponse):
+                 gainValue, setpointLeft, setpointRight, lineSensor, stepResponse, checkIMU):
         self._state = S0_INIT
 
         self._leftMotorGo   = leftMotorGo
@@ -59,6 +60,7 @@ class task_user:
         self._lineSensor    = lineSensor
         self._centroid      = 0
         self._stepResponse  = stepResponse
+        self._checkIMU      = checkIMU
 
         self._ser = USB_VCP()
 
@@ -132,6 +134,10 @@ class task_user:
                     elif in_char in {"c\n", "C\n"}:
                         self._println("Place line sensor on white, press send any letter when placed")
                         self._state = S6_CALW
+                    
+                    elif in_char in {"i\n", "I\n"}:
+                        self._println("Restarting IMU calibration check.")
+                        self._checkIMU.put(True)
 
                     else:
                         self._println("Invalid command")

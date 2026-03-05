@@ -20,6 +20,7 @@ from ulab import numpy as np
 from task_share import Share
 from pyb import USB_VCP
 from utime import ticks_ms, ticks_diff
+import struct
 import micropython
 
 # --- State constants ---
@@ -85,7 +86,8 @@ class task_observer:
                  uR_share:       Share,
                  sL_share:       Share,
                  sR_share:       Share,
-                 myIMU
+                 myIMU,
+                 checkIMU:       Share
                  ):
         '''
         Args:
@@ -100,6 +102,7 @@ class task_observer:
         
         self._state = S0_INIT
         self._imu       = myIMU
+        self._checkIMU  = checkIMU
         # --- Input shares (read by this task) ---
         self._uL       = uL_share
         self._uR       = uR_share
@@ -115,6 +118,8 @@ class task_observer:
 
         # Timer for half-second print interval
         self._last_print_ms = 0
+
+        self._check_cal = 0
 
         print("Observer Task object instantiated")
 
@@ -132,30 +137,61 @@ class task_observer:
                 # Reset state estimate to zero on startup
                 self._x_hat = np.array([[0.0], [0.0], [0.0], [0.0]])
                 self._last_print_ms = ticks_ms()
-                self._state = S2_RUN
+                self._imu.change_mode("IMU")
+                self._state = S1_CAL
 
             elif self._state == S1_CAL:
-                # Check if calibration.txt exists, if not calibrate and create it
-                # if calibration.txt exists:
-
-                sys, gyr, acc, mag = self._imu.get_cal_status()
-                if (sys & gyr & acc & mag) == True:
-                    # create calibration.txt using all values from self._imu.get_cal_coeff()
-                    self._state = S2_RUN
+                # first time this state was run?
+                if self._check_cal == 0:
+                    # Check if calibration.txt exists, if not calibrate and create it
+                    try:
+                        with open("calibration.txt", 'rb') as file:
+                            content = file.read()
+                            (acc_off_x, acc_off_y, acc_off_z, mag_off_x, mag_off_y, 
+                             mag_off_z, gyr_off_x, gyr_off_y, gyr_off_z, acc_rad, mag_rad) = struct.unpack("<hhhhhhhhhhh", content)
+                            print(acc_off_x, acc_off_y, acc_off_z, mag_off_x, mag_off_y, 
+                                  mag_off_z, gyr_off_x, gyr_off_y, gyr_off_z, acc_rad, mag_rad)
+                            self._imu.set_cal_coeff(acc_off_x, acc_off_y, acc_off_z, mag_off_x, mag_off_y, 
+                                                    mag_off_z, gyr_off_x, gyr_off_y, gyr_off_z, acc_rad, mag_rad)
+                        print("IMU calibration loaded from file.")
+                        self._state = S2_RUN
+                    # raises exception if file doesn't exist, then sets substate to calibrate
+                    except:
+                        print("No calibration file found. Starting manual calibration...")
+                        print("Move Romi around until all calibration values reach 3.")
+                        self._check_cal = 1
+                # if flag set to start calibrating:
+                else:
+                    _, gyr, acc, mag = self._imu.get_cal_status()
+                    print(f"GYR:{gyr} ACC:{acc}")
+                    if gyr and acc:
+                        print("Calibration complete! Saving to file...")
+                        (acc_off_x, acc_off_y, acc_off_z, mag_off_x, mag_off_y, 
+                         mag_off_z, gyr_off_x, gyr_off_y, gyr_off_z, acc_rad, mag_rad) = self._imu.get_cal_coeff()
+                        print("Debug coefficients:", acc_off_x, acc_off_y, acc_off_z, mag_off_x, mag_off_y, 
+                              mag_off_z, gyr_off_x, gyr_off_y, gyr_off_z, acc_rad, mag_rad)
+                        packed_data = struct.pack("<hhhhhhhhhhh", acc_off_x, acc_off_y, acc_off_z, mag_off_x, mag_off_y, 
+                              mag_off_z, gyr_off_x, gyr_off_y, gyr_off_z, acc_rad, mag_rad)
+                        with open("calibration.txt", 'wb') as file:
+                            file.write(packed_data)
+                        self._imu.change_mode("IMU")
+                        self._state = S2_RUN
 
             elif self._state == S2_RUN:
 
                 # --- 1. Read inputs u = [uL, uR] from shares ---
                 uL = self._uL.get()
                 uR = self._uR.get()
+                # print(uL)
 
                 # --- 2. Read measurements y = [sL, sR] from shares ---
                 sL      = self._sL.get()
                 sR      = self._sR.get()
                 
                 # --- 3. Read measurements from IMU
-                psi     = self._imu.get_euler_angles()
-                psi_dot = self._imu.get_ang_velocity()
+                psi,     _, _ = self._imu.get_euler_angles()
+                psi_dot, _, _ = self._imu.get_ang_velocity()
+                #print(psi, psi_dot)
 
                 # --- 4. Build augmented input vector u_tilde (6x1) ---
                 # u_tilde = [uL, uR, sL, sR, psi, psi_dot]^T
@@ -189,6 +225,10 @@ class task_observer:
                     self._println(f"  psi_hat    : {psi_hat:.4f} rad")
                     self._println(f"  psi_dot_hat: {psi_dot_hat:.4f} rad/s")
                     self._println()
+                    if self._checkIMU.get() == True:
+                        self._check_cal = 0
+                        self._state     = S1_CAL
+                        self._checkIMU.put(False)
 
             yield self._state
 

@@ -7,7 +7,7 @@ def read_until_idle(ser, idle_timeout=0.3):
     Returns a list of decoded line strings.
     """
     lines = []
-    ser.timeout = 0.05  # Short read timeout so readline() doesn't block long
+    ser.timeout = 0.6  # Short read timeout so readline() doesn't block long
     while True:
         line = ser.readline().decode(errors="ignore").strip()
         if line:
