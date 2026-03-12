@@ -3,19 +3,19 @@
     Implemented as a cooperative multitasking generator.
 '''
 from pyb import USB_VCP
-from task_share import Share, Queue, BaseShare
+from task_share import Share, BaseShare
 import micropython
 from utime import ticks_ms, ticks_diff
 
 # --- State constants ---
-S0_INIT  = micropython.const(0)  # Print help menu
-S1_CMD   = micropython.const(1)  # Wait for a command character
-S2_COL   = micropython.const(2)  # Wait for data collection to finish
-S3_DIS   = micropython.const(3)  # Stream collected data out over serial
-S4_SET   = micropython.const(4)  # Read a numeric value from the user
-S5_RUN   = micropython.const(5)  # Run line following
-S6_CALW  = micropython.const(6)  # Calibrate white
-S7_CALB  = micropython.const(7)  # Calibrate black
+S0_INIT = micropython.const(0)  # Print help menu
+S1_CMD  = micropython.const(1)  # Wait for a command character
+S2_COL  = micropython.const(2)  # Wait for data collection to finish
+S3_DIS  = micropython.const(3)  # Stream collected data out over serial
+S4_SET  = micropython.const(4)  # Read a numeric value from the user
+S5_RUN  = micropython.const(5)  # Run line following
+S6_CALW  = micropython.const(6)  # Callibrate white
+S7_CALB  = micropython.const(7)  # Callibrate black
 
 HELP_MENU = (
     "\r\n+------------------------------------------------------------------------------+\r\n"
@@ -44,9 +44,7 @@ class task_user:
     def __init__(self, leftMotorGo, rightMotorGo,
                  dataValues_L, dataValues_R,
                  timeValues_L, timeValues_R,
-                 gainValue, setpointLeft, setpointRight,
-                 lineSensor, stepResponse, checkIMU,
-                 crashDetect: Queue):           # <-- new parameter
+                 gainValue, setpointLeft, setpointRight, lineSensor, stepResponse, checkIMU):
         self._state = S0_INIT
 
         self._leftMotorGo   = leftMotorGo
@@ -63,7 +61,25 @@ class task_user:
         self._centroid      = 0
         self._stepResponse  = stepResponse
         self._checkIMU      = checkIMU
-        self._crashDetect   = crashDetect      # <-- store the queue
+
+        '''
+        COURSE DATA FORMAT: INSTRUCTION, END CONDITION, SET POINT
+        UNITS: mm, mm/s, radians
+        INSTRUCTIONS:
+        S: Drive in a straight line. Attempts to lock orientation to starting value.
+        End conditions: Integer for desired arc lengths of wheels. B denotes that
+        it will drive until the bump sensors are triggered.
+        LF: Line following. Will not lock orientation, but will register for recording
+        purposes.
+        End conditions: 
+        P: Pivot. Checks current orientation against initial orientation when this
+        state was entered.
+        End conditions: Integer for desired angle offset IN RADIANS.
+        '''
+        self._course_data   = ["S 1375 200", "LF  200", "P -1.57 200", 
+                               "S B 200", "P 1.57 200", "S 375 200", "P -1.57 200",
+                               "LF  150", "P -1.57 200", "LF  200", "P 3.14 200",
+                               "LF  200"]
 
         self._ser = USB_VCP()
 
@@ -91,11 +107,6 @@ class task_user:
             self._setpointRight.put(self._set_internal)
             self._println(f"Setpoint set to {value} mm/s")
         self._setting_key = None
-
-    def _stop_motors(self):
-        '''Helper to stop both motors and clear the go flags.'''
-        self._leftMotorGo.put(False)
-        self._rightMotorGo.put(False)
 
     def run(self):
 
@@ -142,7 +153,7 @@ class task_user:
                     elif in_char in {"c\n", "C\n"}:
                         self._println("Place line sensor on white, press send any letter when placed")
                         self._state = S6_CALW
-
+                    
                     elif in_char in {"i\n", "I\n"}:
                         self._println("Restarting IMU calibration check.")
                         self._checkIMU.put(True)
@@ -196,54 +207,48 @@ class task_user:
 
                     elif char_in in TERMINATORS:
                         buf = self._char_buf
-                        self._char_buf = ""
+                        self._char_buf = ""  # Always reset, regardless of outcome
 
                         if len(buf) == 0 or buf in {"-", "."}:
                             self._println("\r\nValue not changed")
                         else:
                             self._apply_setting(float(buf))
 
-                        self._state = S0_INIT
+                        self._state = S0_INIT  # Return to help menu after either outcome
 
             elif self._state == S5_RUN:
-                # --- Check for a bump event first ---
-                # crashDetect.any() returns True if at least one event is queued.
-                # We check this BEFORE the serial check so a bump takes priority.
-                if self._crashDetect.any():
-                    hit_pin = self._crashDetect.get()   # Which pin number was hit
-                    self._stop_motors()
-                    self._println(f"Bump detected on pin {hit_pin}! Stopping.")
+                self._centroid = self._lineSensor.findCentroid()# Read line position from sensor
+                #self._println(f"Centroid is {self._centroid} mm")
+                self._setpointLeft.put(self._set_internal+self._centroid*3.5)
+                self._setpointRight.put(self._set_internal-self._centroid*3.5)
+                if ticks_ms() % 100 == 0:
+                    centroid_print = str(self._centroid)
+                    t = str(ticks_diff(ticks_ms(), self._startTime))
+                    line = centroid_print + ", " + t
+                    self._println(line)
+
+
+                # if any characters are written to the buffer, stop line following
+                if self._ser.any():
+                    self._ser.read(2)  # consume the character
+                    self._leftMotorGo.put(False)
+                    self._rightMotorGo.put(False)
+                    self._println("Line following stopped.")
                     self._state = S0_INIT
 
-                else:
-                    # Normal line following logic
-                    self._centroid = self._lineSensor.findCentroid()
-                    self._setpointLeft.put(self._set_internal + self._centroid * 3.5)
-                    self._setpointRight.put(self._set_internal - self._centroid * 3.5)
-
-                    if ticks_ms() % 100 == 0:
-                        centroid_print = str(self._centroid)
-                        t = str(ticks_diff(ticks_ms(), self._startTime))
-                        self._println(centroid_print + ", " + t)
-
-                    # If any character is typed, stop line following
-                    if self._ser.any():
-                        self._ser.read(2)
-                        self._stop_motors()
-                        self._println("Line following stopped.")
-                        self._state = S0_INIT
-
             elif self._state == S6_CALW:
+
                 if self._ser.any():
-                    self._ser.read(2)
-                    self._lineSensor.calwhite()
+                    self._ser.read(2)  # consume the character
+                    self._lineSensor.calwhite() # CALLIBRATE WHITE HERE
                     self._println("White calibration complete, place line sensor on black and send another char")
                     self._state = S7_CALB
 
             elif self._state == S7_CALB:
+
                 if self._ser.any():
-                    self._ser.read(2)
-                    self._lineSensor.calblack()
+                    self._ser.read(2)  # consume the character
+                    self._lineSensor.calblack() # CALLIBRATE BLACK HERE
                     self._println("Black calibration complete")
                     self._state = S0_INIT
 

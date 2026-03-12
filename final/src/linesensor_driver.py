@@ -34,7 +34,12 @@ class linesensor:
         total_val = 0
         for i, pinObject in enumerate(self.pinObjects):
             # Get pin output from relevant sensor pin. Adjust based on calibration values.
-            currentValue = (pinObject.read()-self.whiteCal[i])/(self.blackCal[i]-self.whiteCal[i])
+            denom = self.blackCal[i] - self.whiteCal[i]
+            if denom == 0:
+                currentValue = 0
+            else:
+                currentValue = (pinObject.read() - self.whiteCal[i]) / denom
+            currentValue = max(0.0, min(currentValue, 1.0))
             # Multiply this calibrated value by sensor position.
             pos_times_val += self.pinPositions[i]*currentValue
             total_val += currentValue

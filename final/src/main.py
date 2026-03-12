@@ -4,6 +4,7 @@ from linesensor_driver import linesensor
 from task_motor   import task_motor
 from task_user    import task_user
 from task_crash   import task_crash
+from task_button  import task_button
 from task_share   import Share, Queue, show_all
 from cotask       import Task, task_list
 from gc           import collect
@@ -48,6 +49,8 @@ sR            = Share("f",     name="Right Wheel Arc Length")
 # Size of 4 means up to 4 unread bump events can be buffered before overflow.
 crashDetect   = Queue("H", 4,  name="Crash Detect Queue")
 
+buttonDetect  = Queue("H", 4,  name="Button Detect Queue")
+
 
 # Build task class objects
 leftMotorTask  = task_motor(leftMotor,  leftEncoder,
@@ -63,13 +66,18 @@ userTask = task_user(leftMotorGo, rightMotorGo,
                      timeValues_L, timeValues_R,
                      gainValue, setpointLeft, setpointRight,
                      myLineSensor, stepResponse, checkIMU,
-                     crashDetect)                       # <-- new argument
+                     crashDetect, buttonDetect)                       # <-- new argument
 
 # Bump sensor pins: PC10 and PC8.
 # Pin.PULL_UP is configured inside task_crash's ExtInt setup, but we define
 # the Pin objects here as plain inputs so they can be passed in.
 bump_pins = (Pin(Pin.cpu.C10, Pin.IN), Pin(Pin.cpu.C8, Pin.IN))
 crashTask = task_crash(crashDetect, bump_pins)
+
+buttonTask = task_button(
+    buttonDetect,
+    Pin(Pin.cpu.C13)
+)
 
 # psi and psi_dot come from IMU, voltage and arc from motor task
 observerTask = task_observer(uL, uR, sL, sR, myIMU, checkIMU)
@@ -87,6 +95,8 @@ task_list.append(Task(observerTask.run,   name="Observer Task",
 # 10 ms period means each bump gets ~10 ms of debounce before re-arm.
 task_list.append(Task(crashTask.run,      name="Crash Task",
                       priority=2, period=10,  profile=True))
+task_list.append(Task(buttonTask.run,      name="Button Task",
+                      priority=2, period=20,  profile=True))
 
 
 # Run the garbage collector preemptively
