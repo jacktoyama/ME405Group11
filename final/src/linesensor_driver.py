@@ -1,7 +1,9 @@
 import random, pyb
+from utime import ticks_ms, ticks_diff
 
 class linesensor:
     def __init__(self, pins: tuple, spacing: float):
+        self._last_print = ticks_ms()
         self.pinObjects = []
         self.pinPositions = []
         self.whiteCal = []
@@ -38,7 +40,7 @@ class linesensor:
             if denom == 0:
                 currentValue = 0
             else:
-                currentValue = (pinObject.read() - self.whiteCal[i]) / denom
+                currentValue = (pinObject.read() - self.blackCal[i]) / (self.whiteCal[i] - self.blackCal[i])
             currentValue = max(0.0, min(currentValue, 1.0))
             # Multiply this calibrated value by sensor position.
             pos_times_val += self.pinPositions[i]*currentValue
@@ -48,4 +50,20 @@ class linesensor:
             #print(str(total_val))
             self.centroid = max(-24, min(pos_times_val/total_val, 24))
         return self.centroid
+    
+    def printNormalized(self, interval_ms=200):
+        now = ticks_ms()
+        if ticks_diff(now, self._last_print) >= interval_ms:
+            self._last_print = now
+            vals = []
+            for i, pinObject in enumerate(self.pinObjects):
+                denom = self.blackCal[i] - self.whiteCal[i]
+                if denom == 0:
+                    vals.append(0.0)
+                else:
+                    norm = (pinObject.read() - self.whiteCal[i]) / denom
+                    vals.append(round(norm, 2))
+            print([pin.read() for pin in self.pinObjects])
+            print(vals)
+
 

@@ -96,7 +96,7 @@ task_list.append(Task(observerTask.run,   name="Observer Task",
 task_list.append(Task(crashTask.run,      name="Crash Task",
                       priority=2, period=10,  profile=True))
 task_list.append(Task(buttonTask.run,      name="Button Task",
-                      priority=2, period=20,  profile=True))
+                      priority=2, period=100,  profile=True))
 
 
 # Run the garbage collector preemptively

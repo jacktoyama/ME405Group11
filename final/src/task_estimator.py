@@ -219,12 +219,17 @@ class task_observer:
                     psi_hat     = y_hat[2][0]
                     psi_dot_hat = y_hat[3][0]
 
+
+                    '''
                     self._println("--- Observer Estimated Outputs ---")
                     self._println(f"  sL_hat     : {sL_hat:.4f} mm")
                     self._println(f"  sR_hat     : {sR_hat:.4f} mm")
                     self._println(f"  psi_hat    : {psi_hat:.4f} rad")
                     self._println(f"  psi_dot_hat: {psi_dot_hat:.4f} rad/s")
                     self._println()
+                    '''
+
+
                     if self._checkIMU.get() == True:
                         self._check_cal = 0
                         self._state     = S1_CAL

@@ -16,7 +16,7 @@ S4_SET   = micropython.const(4)  # Read a numeric value from the user
 S5_RUN   = micropython.const(5)  # Run line following
 S6_CALW  = micropython.const(6)  # Calibrate white
 S7_CALB  = micropython.const(7)  # Calibrate black
-
+'''
 HELP_MENU = (
     "\r\n+------------------------------------------------------------------------------+\r\n"
     "| ME 405 Romi Tuning Interface Help Menu                                       |\r\n"
@@ -33,7 +33,7 @@ HELP_MENU = (
 
 TERMINATORS = {"\r", "\n"}
 DIGITS = set(map(str, range(10)))
-
+'''
 
 class task_user:
     '''
@@ -56,7 +56,7 @@ class task_user:
         self._timeValues_L  = timeValues_L
         self._timeValues_R  = timeValues_R
         self._gainValue     = gainValue
-        self._set_internal  = 250
+        self._set_internal  = 100
         self._setpointLeft  = setpointLeft
         self._setpointRight = setpointRight
         self._lineSensor    = lineSensor
@@ -112,14 +112,17 @@ class task_user:
                     self._buttonDetect.get()
                     self._lineSensor.calwhite()
                     self._state = S2_CALB
+                    self._ser.write("White calibrated\r\n")
 
             elif self._state == S2_CALB:
                 if self._buttonDetect.any():
                     self._buttonDetect.get()
                     self._lineSensor.calblack()
                     self._state = S3_RUN
+                    self._ser.write("Black calibrated\r\n")
 
             elif self._state == S3_RUN:
+                self._lineSensor.printNormalized(500)
                 # --- Check for a bump event first ---
                 # crashDetect.any() returns True if at least one event is queued.
                 # We check this BEFORE the serial check so a bump takes priority.
@@ -131,8 +134,8 @@ class task_user:
                 elif self._buttonDetect.any():
                     self._buttonDetect.get()
                     self.runFlag = not self.runFlag
-                    self._leftMotorGo.put(not self.runFlag)
-                    self._rightMotorGo.put(not self.runFlag)
+                    self._leftMotorGo.put(self.runFlag)
+                    self._rightMotorGo.put(self.runFlag)
 
                 elif self.runFlag == True:
                     # Normal line following logic
