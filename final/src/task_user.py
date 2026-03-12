@@ -131,6 +131,7 @@ class task_user:
                     self._stop_motors()
                     self._state = S0_INIT
 
+                #CHECK THIS ----------------------------------------------------------------------
                 elif self._buttonDetect.any():
                     self._buttonDetect.get()
                     self.runFlag = not self.runFlag
