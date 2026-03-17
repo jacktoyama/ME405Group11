@@ -2,9 +2,19 @@
 '''
 
 from random import random
-from time import ticks_us, ticks_diff   # Use to get dt value in update()
 from pyb import Timer
 import math
+
+
+# just used for sphinx documentation errors, does nothing on the Romi
+try:
+    from time import ticks_us, ticks_diff
+except ImportError:
+    def ticks_us():
+        return 0
+
+    def ticks_diff(a, b):
+        return a - b
 
 class encoder:
 
