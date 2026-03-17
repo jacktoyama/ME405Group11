@@ -6,6 +6,11 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+
+import sys, os
+sys.path.insert(0, os.path.abspath('../../src'))
+
+
 project = 'ME405Final'
 copyright = '2026, Jack Toyama and Jameson Stengel'
 author = 'Jack Toyama and Jameson Stengel'
