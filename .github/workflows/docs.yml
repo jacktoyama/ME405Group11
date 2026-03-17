@@ -28,12 +28,12 @@ jobs:
 
     - name: Build docs
       run: |
-        sphinx-build docs/source docs/build
+        sphinx-build final/docs/source final/docs/build
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
-        path: docs/build
+        path: final/docs/build
 
   deploy:
     needs: build
