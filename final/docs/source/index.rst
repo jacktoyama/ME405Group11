@@ -3,15 +3,35 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-ME405Final documentation
-========================
+ME405 Term Project
+==================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
+Overview
+--------
 
+This project implements a multitasking embedded system using cooperative scheduling
+on an STM32 microcontroller. The system controls motors, reads sensors, and executes
+closed-loop control.
+
+.. image:: _static/images/robot.jpg
+   :width: 400px
+
+Key Features
+------------
+
+- Cooperative multitasking with shared variables
+- Motor driver and encoder feedback
+- Real-time control system
+- Modular driver/task architecture
+
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
+   overview
+   design
+   tasks
+   results
+   api
