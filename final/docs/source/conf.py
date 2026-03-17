@@ -35,5 +35,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.mathjax",
-    "sphinx.ext.viewcode",
+    "sphinx.ext.viewcode",  
 ]
+
+autodoc_mock_imports = ["pyb", "micropython", "utime"]
