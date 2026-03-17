@@ -1,4 +1,5 @@
-''' This file implements a "dummy" class to use in place of motor driver objects
+''' 
+motor_driver class: initalizes pins and timers for use with Romi motors, motor control functions (enable, disable, effort)
 '''
 
 from pyb import Pin, Timer

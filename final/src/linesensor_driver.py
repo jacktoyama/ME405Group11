@@ -1,3 +1,7 @@
+'''
+linesensor_driver class: initializes pins, calibrates, and finds centroid for line following 
+'''
+
 import random, pyb
 from utime import ticks_ms, ticks_diff
 

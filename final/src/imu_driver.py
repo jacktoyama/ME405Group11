@@ -1,3 +1,6 @@
+'''
+imu_driver class: initializes I2C connection, calibration and reading functions
+'''
 from pyb import I2C
 import struct
 from utime import sleep_ms
@@ -42,20 +45,6 @@ class IMU:
         acc_cal = ((buf[0] & 0b00001100)==0b00001100)
         mag_cal = ((buf[0] & 0b00000011)==0b00000011)
         return sys_cal, gyr_cal, acc_cal, mag_cal
-    
-
-    '''
-    def get_cal_status(self):
-        Retrieve and parse the calibration byte of the IMU.
-        Outputs integers 0-3 in order of SYS, GYR, ACC, and MAG.
-        buf = bytearray((0 for _ in range(1)))
-        self.i2c.mem_read(buf, self.i2c_addr, 0x35)
-        sys_cal = (buf[0] >> 6) & 0x03
-        gyr_cal = (buf[0] >> 4) & 0x03
-        acc_cal = (buf[0] >> 2) & 0x03
-        mag_cal = (buf[0] >> 0) & 0x03
-        return sys_cal, gyr_cal, acc_cal, mag_cal
-    '''
         
     def get_cal_coeff(self):
         buf = bytearray((0 for _ in range(22)))

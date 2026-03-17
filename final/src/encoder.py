@@ -1,4 +1,5 @@
-''' This file implements a "dummy" class to use in place of encoder objects
+'''
+encoder class: initalizes pins and timers for use with Romi encoders, encoder reading functions (update, get_position, get_velocity, zero)
 '''
 
 from random import random
