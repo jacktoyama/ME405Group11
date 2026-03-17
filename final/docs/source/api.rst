@@ -1,8 +1,7 @@
 Code Reference
 ==============
 
-.. automodule:: task_controller
-   :members:
+.. toctree::
+   :maxdepth: 2
 
-.. automodule:: motor_driver
-   :members:
+   modules
