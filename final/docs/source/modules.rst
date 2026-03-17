@@ -4,7 +4,6 @@ src
 .. toctree::
    :maxdepth: 4
 
-   boot
    cotask
    encoder
    imu_driver
