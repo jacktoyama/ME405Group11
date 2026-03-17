@@ -7,6 +7,7 @@ from task_share import Share, Queue, BaseShare
 import micropython
 from utime import ticks_ms, ticks_diff
 import math
+from time import sleep
 
 # --- State constants ---
 S0_INIT  = micropython.const(0)  # Print help menu
@@ -72,6 +73,10 @@ class task_user:
         self.runFlag = False
         self._printed = False
 
+        self._headingRef = 0
+
+        self._calFlag = False
+
     def _println(self, text=""):
         self._ser.write(text + "\r\n")
 
@@ -93,6 +98,10 @@ class task_user:
         '''Helper to stop both motors and clear the go flags.'''
         self._leftMotorGo.put(False)
         self._rightMotorGo.put(False)
+
+    def pause(self):
+        sleep(1)
+        yield
 
     # -------------------------------------------------------------------------
     # drive_distance: move both wheels forward (or backward) a given distance.
@@ -183,12 +192,13 @@ class task_user:
     #                 below if your Romi turns the opposite direction.
     #   speed_mm_s  : speed of each wheel during the turn in mm/s.
     # -------------------------------------------------------------------------
-    def turn_angle(self, angle_deg, speed_mm_s=60):
-        '''
+    '''
+    def turn_angle(self, angle_deg):
+        
         Generator sub-routine: rotates Romi by angle_deg degrees using IMU.
         Call with "yield from self.turn_angle(90)" inside run().
         Positive angle = CCW (left turn), negative = CW (right turn).
-        '''
+        
         # Convert target to radians to match the IMU's output units
         target_rad = math.radians(abs(angle_deg))
 
@@ -199,11 +209,11 @@ class task_user:
         # CCW (positive angle): left wheel backward, right wheel forward.
         # CW  (negative angle): left wheel forward, right wheel backward.
         if angle_deg >= 0:
-            left_spd  = -abs(speed_mm_s)   # left wheel goes backward
-            right_spd =  abs(speed_mm_s)   # right wheel goes forward
+            left_spd  = -abs(40)   # left wheel goes backward
+            right_spd =  abs(40)   # right wheel goes forward
         else:
-            left_spd  =  abs(speed_mm_s)
-            right_spd = -abs(speed_mm_s)
+            left_spd  =  abs(40)
+            right_spd = -abs(40)
 
         # Enable motors and set spin speeds
         self._leftMotorGo.put(True)
@@ -226,10 +236,62 @@ class task_user:
 
         # Stop motors
         self._stop_motors()
-        self._setpointLeft.put(0.0)
-        self._setpointRight.put(0.0)
+        self._setpointLeft.put(self._set_internal)
+        self._setpointRight.put(self._set_internal)
         yield   # One final yield so the motor task sees the stop command
+'''
+    def turn_angle(self, angle_deg):
+        '''
+        Generator sub-routine: rotates Romi by angle_deg degrees using encoders.
+        Call with "yield from self.turn_angle(90)" inside run().
+        Positive angle = CCW (left turn), negative = CW (right turn).
 
+        Math: each wheel must travel arc = (track_width/2) * angle_rad
+        track_width = 149 mm, so arc = 74.5 * angle_rad
+        '''
+        TRACK_WIDTH_MM = 149.0
+
+        angle_rad  = math.radians(abs(angle_deg))
+        target_arc = (TRACK_WIDTH_MM / 2.0) * angle_rad   # mm each wheel must travel
+
+        # Snapshot starting positions from the shares
+        start_L = self._sL.get()
+        start_R = self._sR.get()
+
+        # CCW (positive): left goes backward, right goes forward
+        # CW  (negative): left goes forward, right goes backward
+        if angle_deg >= 0:
+            left_spd  = -40.0
+            right_spd =  40.0
+        else:
+            left_spd  =  40.0
+            right_spd = -40.0
+
+        self._leftMotorGo.put(True)
+        self._rightMotorGo.put(True)
+        self._setpointLeft.put(left_spd)
+        self._setpointRight.put(right_spd)
+
+        while True:
+            # How far has each wheel actually traveled since the turn started?
+            traveled_L = abs(self._sL.get() - start_L)
+            traveled_R = abs(self._sR.get() - start_R)
+            print(traveled_L)
+
+            # Average both wheels in case of slight slip
+            avg_traveled = (traveled_L + traveled_R) / 2.0
+
+            if avg_traveled >= target_arc:
+                print(f"total traveled: {avg_traveled}")
+                break
+                
+
+            yield   # Let motor task run
+
+        self._stop_motors()
+        self._setpointLeft.put(self._set_internal)
+        self._setpointRight.put(self._set_internal)
+        yield   # Let motor task see the stop
     # -------------------------------------------------------------------------
     # _heading_diff: computes the signed angular change between two headings,
     #               correctly handling the 0/2π wrap-around.
@@ -260,10 +322,13 @@ class task_user:
             # Change state on press of a button
             if self._buttonDetect.any():
                 self._buttonDetect.get()
-                if self._state == 5:
+                if self._state == 0 and self._calFlag:
+                    self._state = 5
+                elif self._state >= 5:
                     self._state = 0
                 else:
                     self._state += 1
+                self._headingRef, _, _ = self._imu.get_euler_angles()
 
             if self._state == 0:
                 self._stop_motors()
@@ -287,6 +352,7 @@ class task_user:
                 self._ser.write("Black calibrated\r\n")
                 self._state += 1
                 self._printed = False
+                self._calFlag = True
 
             elif self._state == 4:
                 if self._printed == False:
@@ -302,9 +368,17 @@ class task_user:
                 self._leftMotorGo.put(True)
                 self._rightMotorGo.put(True)
 
-                self._centroid, total_val = self._lineSensor.findCentroid()
-                if total_val > 5:
-                    self._state = 0
+                checkHeading, _, _ = self._imu.get_euler_angles()
+                checkdiff = checkHeading - self._headingRef
+                # Wrap into (-π, π]
+                while checkdiff >  math.pi:
+                    checkdiff -= 2 * math.pi
+                while checkdiff <= -math.pi:
+                    checkdiff += 2 * math.pi
+                if checkdiff >= math.radians(90):
+                    self._state = 6
+                    self._stop_motors()
+                self._centroid, _ = self._lineSensor.findCentroid()
                 self._setpointLeft.put(self._set_internal + min(self._centroid * 6,0))
                 self._setpointRight.put(self._set_internal - max(self._centroid * 6,0))
                 self._printed = False
@@ -316,24 +390,50 @@ class task_user:
             # motor task keeps running in the background.
             # ---------------------------------------------------------------
             elif self._state == 6:
-                # Drive forward 300 mm, then turn 90 degrees right (CW = -90)
-                yield from self.drive_distance(300, speed_mm_s=80)
-                yield from self.turn_angle(-90, speed_mm_s=60)
+                yield from self.pause()
                 self._state = 7
-
             elif self._state == 7:
-                # Turn left 90 degrees, drive 200 mm, turn right 90 degrees
-                yield from self.turn_angle(90, speed_mm_s=60)
-                yield from self.drive_distance(200, speed_mm_s=80)
-                yield from self.turn_angle(-90, speed_mm_s=60)
-                self._state = 8
+                '''
+                if not hasattr(self, '_state6_ref'):
+                    self._state6_ref = None
+                if self._state6_ref is None:
+                    self._state6_ref, _, _ = self._imu.get_euler_angles()
+                    # Set setpoints BEFORE enabling motors
+                    self._setpointLeft.put(60)
+                    self._setpointRight.put(-60)
+                    self._leftMotorGo.put(True)
+                    self._rightMotorGo.put(True)
 
+                checkHeading, _, _ = self._imu.get_euler_angles()
+                checkdiff = checkHeading - self._state6_ref
+                while checkdiff > math.pi:
+                    checkdiff -= 2 * math.pi
+                while checkdiff <= -math.pi:
+                    checkdiff += 2 * math.pi
+                if checkdiff <= -math.radians(85):
+                    self._stop_motors()
+                    self._state6_ref = None
+                    self._state = 7
+                '''
+                
+                yield from self.turn_angle(-90)
+                self._state = 8
+                self._leftMotorGo.put(False)
+                self._rightMotorGo.put(False)
+                self._setpointLeft.put(100)
+                self._setpointRight.put(100)
+            
             elif self._state == 8:
-                # Line follow until line is lost (existing logic)
+                yield from self.pause()
                 self._state = 9
 
             elif self._state == 9:
-                # Hardcode movement back to start
-                self._state = 0
+                yield from self.pause()
+                if self._crashDetect.any():
+                    self._crashDetect.get()
+                    self._stop_motors()
+                    self._state = 0
+                self._leftMotorGo.put(True)
+                self._rightMotorGo.put(True)
 
             yield self._state
