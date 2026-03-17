@@ -293,7 +293,7 @@ class task_user:
                     self._ser.write("Place on starting position and hit button to run\r\n")
                     self._printed = True
 
-            elif self._state == 6:
+            elif self._state == 5:
                 if self._crashDetect.any():
                     self._crashDetect.get()
                     self._stop_motors()
@@ -302,7 +302,9 @@ class task_user:
                 self._leftMotorGo.put(True)
                 self._rightMotorGo.put(True)
 
-                self._centroid = self._lineSensor.findCentroid()
+                self._centroid, total_val = self._lineSensor.findCentroid()
+                if total_val > 5:
+                    self._state = 0
                 self._setpointLeft.put(self._set_internal + min(self._centroid * 6,0))
                 self._setpointRight.put(self._set_internal - max(self._centroid * 6,0))
                 self._printed = False
@@ -313,7 +315,7 @@ class task_user:
             # on, but keep yielding to the scheduler the whole time so the
             # motor task keeps running in the background.
             # ---------------------------------------------------------------
-            elif self._state == 5:
+            elif self._state == 6:
                 # Drive forward 300 mm, then turn 90 degrees right (CW = -90)
                 yield from self.drive_distance(300, speed_mm_s=80)
                 yield from self.turn_angle(-90, speed_mm_s=60)

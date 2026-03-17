@@ -47,9 +47,9 @@ class linesensor:
             total_val += currentValue
         if not total_val == 0:
             #print(str(pos_times_val))
-            #print(str(total_val))
+            #print(total_val)
             self.centroid = max(-24, min(pos_times_val/total_val, 24))
-        return self.centroid
+        return self.centroid, total_val
     
     def printNormalized(self, interval_ms=200):
         now = ticks_ms()
@@ -63,7 +63,9 @@ class linesensor:
                 else:
                     norm = (pinObject.read() - self.whiteCal[i]) / denom
                     vals.append(round(norm, 2))
-            print([pin.read() for pin in self.pinObjects])
-            print(vals)
+            #print([pin.read() for pin in self.pinObjects])
+            #print(vals)
+            #print(sum(vals))
+
 
 
