@@ -38,4 +38,4 @@ extensions = [
     "sphinx.ext.viewcode",  
 ]
 
-autodoc_mock_imports = ["pyb", "micropython", "utime"]
+autodoc_mock_imports = ["pyb", "micropython", "utime", "ulab", "time"]
