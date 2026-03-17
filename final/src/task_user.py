@@ -6,34 +6,18 @@ from pyb import USB_VCP
 from task_share import Share, Queue, BaseShare
 import micropython
 from utime import ticks_ms, ticks_diff
+import math
 
 # --- State constants ---
 S0_INIT  = micropython.const(0)  # Print help menu
-S1_CALW   = micropython.const(1)  # Wait for a command character
-S2_CALB   = micropython.const(2)  # Wait for data collection to finish
+S1_CALW  = micropython.const(1)  # Wait for a command character
+S2_CALB  = micropython.const(2)  # Wait for data collection to finish
 S3_RUN   = micropython.const(3)  # Stream collected data out over serial
 S4_SET   = micropython.const(4)  # Read a numeric value from the user
 S5_RUN   = micropython.const(5)  # Run line following
 S6_CALW  = micropython.const(6)  # Calibrate white
 S7_CALB  = micropython.const(7)  # Calibrate black
-'''
-HELP_MENU = (
-    "\r\n+------------------------------------------------------------------------------+\r\n"
-    "| ME 405 Romi Tuning Interface Help Menu                                       |\r\n"
-    "+---+--------------------------------------------------------------------------+\r\n"
-    "| h | Print help menu                                                          |\r\n"
-    "| k | Enter new gain values                                                    |\r\n"
-    "| s | Choose a new setpoint                                                    |\r\n"
-    "| g | Trigger step response and print results                                  |\r\n"
-    "| c | Calibrate line sensor                                                    |\r\n"
-    "| m | Start line following                                                     |\r\n"
-    "| i | Run IMU check                                                            |\r\n"
-    "+---+--------------------------------------------------------------------------+\r\n"
-)
 
-TERMINATORS = {"\r", "\n"}
-DIGITS = set(map(str, range(10)))
-'''
 
 class task_user:
     '''
@@ -44,10 +28,11 @@ class task_user:
     def __init__(self, leftMotorGo, rightMotorGo,
                  dataValues_L, dataValues_R,
                  timeValues_L, timeValues_R,
-                 gainValue, setpointLeft, setpointRight,
+                 Ki, Kp, setpointLeft, setpointRight,
                  lineSensor, stepResponse, checkIMU,
-                 crashDetect: Queue, buttonDetect: Queue):           # <-- new parameter
-        self._state = S0_INIT
+                 crashDetect: Queue, buttonDetect: Queue,
+                 sL: Share, sR: Share, myIMU):       # <-- added sL, sR, myIMU
+        self._state = 0
 
         self._leftMotorGo   = leftMotorGo
         self._rightMotorGo  = rightMotorGo
@@ -55,7 +40,8 @@ class task_user:
         self._dataValues_R  = dataValues_R
         self._timeValues_L  = timeValues_L
         self._timeValues_R  = timeValues_R
-        self._gainValue     = gainValue
+        self._Kp = Kp
+        self._Ki = Ki
         self._set_internal  = 100
         self._setpointLeft  = setpointLeft
         self._setpointRight = setpointRight
@@ -63,31 +49,39 @@ class task_user:
         self._centroid      = 0
         self._stepResponse  = stepResponse
         self._checkIMU      = checkIMU
-        self._crashDetect   = crashDetect      # <-- store the queue
+        self._crashDetect   = crashDetect
         self._buttonDetect  = buttonDetect
+        self._sL            = sL       # left wheel arc length share [mm]
+        self._sR            = sR       # right wheel arc length share [mm]
+        self._imu           = myIMU    # IMU object for heading reads
 
         self._ser = USB_VCP()
 
-        self._char_buf    = ""    # Accumulates typed characters in S4_SET
-        self._setting_key = None  # Tracks which value we're editing: "gain" or "setpoint"
+        self._char_buf    = ""
+        self._setting_key = None
 
-        self._gainValue.put(100 / 549)
+        self._Kp.put(100 / 549)
+        self._Ki.put(0.0)
+
         self._setpointLeft.put(self._set_internal)
         self._setpointRight.put(self._set_internal)
 
         self._ser.write("User Task object instantiated\r\n")
 
         self._startTime = 0
-
         self.runFlag = False
+        self._printed = False
 
     def _println(self, text=""):
         self._ser.write(text + "\r\n")
 
     def _apply_setting(self, value):
         if self._setting_key == "gain":
-            self._gainValue.put(value)
-            self._println(f"Gain set to {value}")
+            self._Kp.put(value)
+            self._println(f"Kp set to {value}")
+        elif self._setting_key == "ki":
+            self._Ki.put(value)
+            self._println(f"Ki set to {value}")
         elif self._setting_key == "setpoint":
             self._set_internal = value
             self._setpointLeft.put(self._set_internal)
@@ -100,48 +94,244 @@ class task_user:
         self._leftMotorGo.put(False)
         self._rightMotorGo.put(False)
 
+    # -------------------------------------------------------------------------
+    # drive_distance: move both wheels forward (or backward) a given distance.
+    #
+    # How it works:
+    #   - Records the starting arc length of each wheel from the sL/sR shares.
+    #   - Sets both motor setpoints to +speed (or -speed for negative distance).
+    #   - Every time the scheduler calls run(), this generator yields so the
+    #     motor task can actually run and turn the wheels.
+    #   - Each yield it checks how far the wheels have traveled. When the
+    #     average of both wheels reaches the target, it stops.
+    #
+    # Why average both wheels? If one wheel slips slightly they won't travel
+    # exactly the same distance. Averaging avoids stopping too early or late
+    # on either side.
+    #
+    # Args:
+    #   distance_mm : how far to drive in mm. Positive = forward.
+    #   speed_mm_s  : wheel speed in mm/s (always positive; sign of distance
+    #                 controls direction).
+    # -------------------------------------------------------------------------
+    def drive_distance(self, distance_mm, speed_mm_s=80):
+        '''
+        Generator sub-routine: drives straight for distance_mm millimeters.
+        Call with "yield from self.drive_distance(300)" inside run().
+        '''
+        # Record where each wheel starts so we measure relative travel
+        start_L = self._sL.get()
+        start_R = self._sR.get()
+
+        # Decide direction: if distance is negative we want to go backward
+        direction = 1 if distance_mm >= 0 else -1
+        target    = abs(distance_mm)
+        spd       = abs(speed_mm_s) * direction
+
+        # Enable motors and set constant forward (or backward) speed
+        self._leftMotorGo.put(True)
+        self._rightMotorGo.put(True)
+        self._setpointLeft.put(spd)
+        self._setpointRight.put(spd)
+
+        # Keep looping (and yielding) until both wheels have covered the distance
+        while True:
+            # How far has each wheel traveled since we started?
+            traveled_L = abs(self._sL.get() - start_L)
+            traveled_R = abs(self._sR.get() - start_R)
+
+            # Use the average so a slight mismatch doesn't stop us too soon
+            avg_traveled = (traveled_L + traveled_R) / 2.0
+
+            if avg_traveled >= target:
+                break   # Target reached — exit the loop
+
+            yield   # Hand control back to the scheduler so motors keep running
+
+        # Stop both motors cleanly
+        self._stop_motors()
+        self._setpointLeft.put(0.0)
+        self._setpointRight.put(0.0)
+        yield   # One final yield so the motor task sees the stop command
+
+    # -------------------------------------------------------------------------
+    # turn_angle: rotate in place by a given angle using the IMU heading.
+    #
+    # How it works:
+    #   - Reads the current IMU heading as the starting reference.
+    #   - Spins the left wheel backward and the right wheel forward (for a
+    #     positive/counterclockwise turn) or vice versa.
+    #   - Every yield it reads the new IMU heading and computes how many
+    #     degrees we've turned so far using _heading_diff().
+    #   - Stops when the accumulated rotation matches the target angle.
+    #
+    # Why use the IMU instead of encoders for turning?
+    #   Encoders measure wheel arc length. To convert that to a heading change
+    #   you need the exact track width, which is hard to measure precisely and
+    #   changes with surface friction. The IMU directly measures rotation, so
+    #   it's more accurate for turns.
+    #
+    # Heading wrap-around problem:
+    #   IMU heading goes 0 → 2π then wraps back to 0. If you start at 5.9 rad
+    #   and turn 0.5 rad, the new heading is 0.1 rad, not 6.4 rad. The helper
+    #   _heading_diff() handles this so we always get the correct signed
+    #   angular change regardless of wrap.
+    #
+    # Args:
+    #   angle_deg   : how many degrees to turn. Positive = CCW (left turn),
+    #                 negative = CW (right turn). Change the sign convention
+    #                 below if your Romi turns the opposite direction.
+    #   speed_mm_s  : speed of each wheel during the turn in mm/s.
+    # -------------------------------------------------------------------------
+    def turn_angle(self, angle_deg, speed_mm_s=60):
+        '''
+        Generator sub-routine: rotates Romi by angle_deg degrees using IMU.
+        Call with "yield from self.turn_angle(90)" inside run().
+        Positive angle = CCW (left turn), negative = CW (right turn).
+        '''
+        # Convert target to radians to match the IMU's output units
+        target_rad = math.radians(abs(angle_deg))
+
+        # Record heading at the start of the turn
+        heading_start, _, _ = self._imu.get_euler_angles()  # returns radians
+
+        # Decide spin direction.
+        # CCW (positive angle): left wheel backward, right wheel forward.
+        # CW  (negative angle): left wheel forward, right wheel backward.
+        if angle_deg >= 0:
+            left_spd  = -abs(speed_mm_s)   # left wheel goes backward
+            right_spd =  abs(speed_mm_s)   # right wheel goes forward
+        else:
+            left_spd  =  abs(speed_mm_s)
+            right_spd = -abs(speed_mm_s)
+
+        # Enable motors and set spin speeds
+        self._leftMotorGo.put(True)
+        self._rightMotorGo.put(True)
+        self._setpointLeft.put(left_spd)
+        self._setpointRight.put(right_spd)
+
+        # Keep looping until we've rotated far enough
+        while True:
+            heading_now, _, _ = self._imu.get_euler_angles()
+
+            # _heading_diff gives signed change from start to now (radians)
+            delta = self._heading_diff(heading_start, heading_now)
+
+            # We care about total rotation magnitude matching our target
+            if abs(delta) >= target_rad:
+                break
+
+            yield   # Let the motor task and other tasks run
+
+        # Stop motors
+        self._stop_motors()
+        self._setpointLeft.put(0.0)
+        self._setpointRight.put(0.0)
+        yield   # One final yield so the motor task sees the stop command
+
+    # -------------------------------------------------------------------------
+    # _heading_diff: computes the signed angular change between two headings,
+    #               correctly handling the 0/2π wrap-around.
+    #
+    # Example without wrap handling:
+    #   start=5.9 rad, now=0.1 rad → naive diff = 0.1-5.9 = -5.8 rad (WRONG)
+    #   correct answer = +0.48 rad (small CCW rotation crossing zero)
+    #
+    # The fix: after subtracting, force the result into the range (-π, +π]
+    # by adding or subtracting 2π. This always gives the shortest-path angle.
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def _heading_diff(start_rad, now_rad):
+        '''Returns signed angular change from start to now, in radians.
+           Result is in (-π, π] so wrap-around is handled correctly.'''
+        diff = now_rad - start_rad
+        # Wrap into (-π, π]
+        while diff >  math.pi:
+            diff -= 2 * math.pi
+        while diff <= -math.pi:
+            diff += 2 * math.pi
+        return diff
+
     def run(self):
 
         while True:
 
-            if self._state == S0_INIT:
-                self._state = S1_CALW
+            # Change state on press of a button
+            if self._buttonDetect.any():
+                self._buttonDetect.get()
+                if self._state == 5:
+                    self._state = 0
+                else:
+                    self._state += 1
 
-            elif self._state == S1_CALW:
-                if self._buttonDetect.any():
-                    self._buttonDetect.get()
-                    self._lineSensor.calwhite()
-                    self._state = S2_CALB
-                    self._ser.write("White calibrated\r\n")
+            if self._state == 0:
+                self._stop_motors()
+                if self._printed == False:
+                    self._ser.write("Place on white, then press button to calibrate\r\n")
+                    self._printed = True
 
-            elif self._state == S2_CALB:
-                if self._buttonDetect.any():
-                    self._buttonDetect.get()
-                    self._lineSensor.calblack()
-                    self._state = S3_RUN
-                    self._ser.write("Black calibrated\r\n")
+            elif self._state == 1:
+                self._lineSensor.calwhite()
+                self._ser.write("White calibrated\r\n")
+                self._state += 1
+                self._printed = False
 
-            elif self._state == S3_RUN:
-                self._lineSensor.printNormalized(500)
-                # --- Check for a bump event first ---
-                # crashDetect.any() returns True if at least one event is queued.
-                # We check this BEFORE the serial check so a bump takes priority.
+            elif self._state == 2:
+                if self._printed == False:
+                    self._ser.write("Place on black, then press button to calibrate\r\n")
+                    self._printed = True
+
+            elif self._state == 3:
+                self._lineSensor.calblack()
+                self._ser.write("Black calibrated\r\n")
+                self._state += 1
+                self._printed = False
+
+            elif self._state == 4:
+                if self._printed == False:
+                    self._ser.write("Place on starting position and hit button to run\r\n")
+                    self._printed = True
+
+            elif self._state == 6:
                 if self._crashDetect.any():
-                    self._crashDetect.get() 
+                    self._crashDetect.get()
                     self._stop_motors()
-                    self._state = S0_INIT
+                    self._state = 0
 
-                #CHECK THIS ----------------------------------------------------------------------
-                elif self._buttonDetect.any():
-                    self._buttonDetect.get()
-                    self.runFlag = not self.runFlag
-                    self._leftMotorGo.put(self.runFlag)
-                    self._rightMotorGo.put(self.runFlag)
+                self._leftMotorGo.put(True)
+                self._rightMotorGo.put(True)
 
-                elif self.runFlag == True:
-                    # Normal line following logic
-                    self._centroid = self._lineSensor.findCentroid()
-                    self._setpointLeft.put(self._set_internal + self._centroid * 3.5)
-                    self._setpointRight.put(self._set_internal - self._centroid * 3.5)
+                self._centroid = self._lineSensor.findCentroid()
+                self._setpointLeft.put(self._set_internal + min(self._centroid * 6,0))
+                self._setpointRight.put(self._set_internal - max(self._centroid * 6,0))
+                self._printed = False
+
+            # ---------------------------------------------------------------
+            # Example hardcoded sequence using drive_distance and turn_angle.
+            # "yield from" means: run that generator completely before moving
+            # on, but keep yielding to the scheduler the whole time so the
+            # motor task keeps running in the background.
+            # ---------------------------------------------------------------
+            elif self._state == 5:
+                # Drive forward 300 mm, then turn 90 degrees right (CW = -90)
+                yield from self.drive_distance(300, speed_mm_s=80)
+                yield from self.turn_angle(-90, speed_mm_s=60)
+                self._state = 7
+
+            elif self._state == 7:
+                # Turn left 90 degrees, drive 200 mm, turn right 90 degrees
+                yield from self.turn_angle(90, speed_mm_s=60)
+                yield from self.drive_distance(200, speed_mm_s=80)
+                yield from self.turn_angle(-90, speed_mm_s=60)
+                self._state = 8
+
+            elif self._state == 8:
+                # Line follow until line is lost (existing logic)
+                self._state = 9
+
+            elif self._state == 9:
+                # Hardcode movement back to start
+                self._state = 0
 
             yield self._state

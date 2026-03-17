@@ -40,7 +40,7 @@ class linesensor:
             if denom == 0:
                 currentValue = 0
             else:
-                currentValue = (pinObject.read() - self.blackCal[i]) / (self.whiteCal[i] - self.blackCal[i])
+                currentValue = (self.whiteCal[i] - pinObject.read()) / (self.whiteCal[i] - self.blackCal[i])
             currentValue = max(0.0, min(currentValue, 1.0))
             # Multiply this calibrated value by sensor position.
             pos_times_val += self.pinPositions[i]*currentValue

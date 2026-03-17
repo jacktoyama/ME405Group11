@@ -31,7 +31,8 @@ myIMU = IMU(i2c1, 0x28)                           # 0x28 is default BNO055 addre
 # Build shares and queues
 leftMotorGo   = Share("B",     name="Left Mot. Go Flag")
 rightMotorGo  = Share("B",     name="Right Mot. Go Flag")
-gainValue     = Share("f",     name="Gain Value")
+Kp            = Share("f",     name="Proportional Gain")
+Ki            = Share("f",     name="Integral Gain")
 setpointLeft  = Share("f",     name="Left Setpoint Value")
 setpointRight = Share("f",     name="Right Setpoint Value")
 stepResponse  = Share("B",     name="Step Response Flag")
@@ -55,18 +56,19 @@ buttonDetect  = Queue("H", 4,  name="Button Detect Queue")
 # Build task class objects
 leftMotorTask  = task_motor(leftMotor,  leftEncoder,
                             leftMotorGo, dataValues_L, timeValues_L,
-                            gainValue, setpointLeft, stepResponse,
+                            Kp, Ki, setpointLeft, stepResponse,
                             uL, sL)
 rightMotorTask = task_motor(rightMotor, rightEncoder,
                             rightMotorGo, dataValues_R, timeValues_R,
-                            gainValue, setpointRight, stepResponse,
+                            Kp, Ki, setpointRight, stepResponse,
                             uR, sR)
 userTask = task_user(leftMotorGo, rightMotorGo,
                      dataValues_L, dataValues_R,
                      timeValues_L, timeValues_R,
-                     gainValue, setpointLeft, setpointRight,
+                     Kp, Ki, setpointLeft, setpointRight,
                      myLineSensor, stepResponse, checkIMU,
-                     crashDetect, buttonDetect)                       # <-- new argument
+                     crashDetect, buttonDetect,
+                     sL, sR, myIMU)        # <-- add these three
 
 # Bump sensor pins: PC10 and PC8.
 # Pin.PULL_UP is configured inside task_crash's ExtInt setup, but we define
@@ -96,7 +98,7 @@ task_list.append(Task(observerTask.run,   name="Observer Task",
 task_list.append(Task(crashTask.run,      name="Crash Task",
                       priority=2, period=10,  profile=True))
 task_list.append(Task(buttonTask.run,      name="Button Task",
-                      priority=2, period=100,  profile=True))
+                      priority=2, period=200,  profile=True))
 
 
 # Run the garbage collector preemptively
