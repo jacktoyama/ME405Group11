@@ -35,3 +35,10 @@ Contents
    tasks
    results
    api
+
+Mechanical Design
+-----------------
+
+Task Diagrams
+-------------
+
