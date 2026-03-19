@@ -7,7 +7,7 @@ Overview
 This diagram shows the overall hardware layout of the system, including
 the microcontroller, motor drivers, encoders, and power supply.
 
-.. image:: _static/_image/hardware405.png
+.. image:: _static/_images/hardware405.png
    :width: 600px
    :align: center
    :alt: Hardware diagram of the system
