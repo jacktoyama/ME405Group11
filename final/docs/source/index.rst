@@ -13,8 +13,6 @@ This project implements a multitasking embedded system using cooperative schedul
 on an STM32 microcontroller. The system controls motors, reads sensors, and executes
 closed-loop control.
 
-.. image:: _static/images/robot.jpg
-   :width: 400px
 
 Key Features
 ------------
@@ -33,6 +31,8 @@ Contents
    api
    hardware_diagram
    task_diagrams
+   state_diagrams
+   results
 
 
 
