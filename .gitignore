@@ -1,5 +1,3 @@
-# Ignore all PNG images
-*.png
 
 # Ignore all CSV files
 *.csv
