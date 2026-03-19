@@ -32,10 +32,7 @@ Contents
 
    api
    hardware_diagram
+   task_diagrams
 
-Mechanical Design
------------------
 
-Task Diagrams
--------------
 
