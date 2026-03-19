@@ -30,11 +30,8 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   overview
-   design
-   tasks
-   results
    api
+   hardware_diagram
 
 Mechanical Design
 -----------------
