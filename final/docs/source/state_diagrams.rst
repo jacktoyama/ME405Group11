@@ -23,7 +23,7 @@ be updated at the same time in order to provide immediate feedback on Romi's mov
    :align: center
    :alt: Motor state estimation state diagram
 
-Estimator
+Estimator and IMU
 --------------
 The observer task only contains a few states due to the simplicity of what it needs to 
 handle, that being the flow of data to and from the IMU but nothing else. The initial 
@@ -34,6 +34,7 @@ the automatic loading of those values to completely avoid any lengthy calibratio
    :width: 600px
    :align: center
    :alt: Observer state estimation state diagram
+
 
 .. image:: _static/_images/imustate.png
    :width: 600px
