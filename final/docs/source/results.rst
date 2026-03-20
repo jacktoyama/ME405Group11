@@ -10,3 +10,11 @@ Official
 --------
 During the demo, unfortunately the first 2 trials failed because the Romi was overturning after checkpoint 1. 
 This is very likely due to a power issue, as we had to change the batteries right before the actual demo.
+
+Video
+-----
+.. raw:: html
+
+    <iframe width="560" height="315"
+    src="https://youtu.be/tGBC6yNFPmE"
+    frameborder="0" allowfullscreen></iframe>
