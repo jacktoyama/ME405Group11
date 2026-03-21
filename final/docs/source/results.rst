@@ -4,8 +4,8 @@ Results
 Running the course
 ------------------
 To use our Romi, the line sensor must be calibrated after turning on the robot. Place the sensor on the whitespace and hit the blue button on the 
-microcontroller. Then move the sensor to the black calibration triangle and hit the button again. Finally, line up the wheels on the starting position and
- hit the button a third time. Once the Romi finishes the course, it can be repositioned and restarted without having to calibrate again.
+microcontroller. Then move the sensor to the black calibration triangle and hit the button again. Finally, line up the wheels on the starting position and 
+hit the button a third time. Once the Romi finishes the course, it can be repositioned and restarted without having to calibrate again.
 
 Unofficial
 ----------
