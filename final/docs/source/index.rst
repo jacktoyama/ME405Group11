@@ -12,6 +12,8 @@ Overview
 This project implements a dual motor robot conrolled by a Nucle STM32 microcontroller. 
 Using a variety of sensors, the robot runs through a obstacle course style track.
 
+full repo: https://github.com/jacktoyama/ME405Group11
+
 
 Key Features
 ------------
