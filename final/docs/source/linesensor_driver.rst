@@ -5,3 +5,10 @@ linesensor\_driver module
    :members:
    :show-inheritance:
    :undoc-members:
+
+Full source
+-----------
+
+.. literalinclude:: ../../src/linesensor_driver.py
+   :language: python
+   :linenos:

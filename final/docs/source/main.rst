@@ -5,3 +5,10 @@ main module
    :members:
    :show-inheritance:
    :undoc-members:
+
+Full source
+-----------
+
+.. literalinclude:: ../../src/main.py
+   :language: python
+   :linenos:

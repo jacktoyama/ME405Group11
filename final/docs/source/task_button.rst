@@ -5,3 +5,10 @@ task\_button module
    :members:
    :show-inheritance:
    :undoc-members:
+
+Full source
+-----------
+
+.. literalinclude:: ../../src/task_button.py
+   :language: python
+   :linenos:

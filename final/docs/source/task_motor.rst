@@ -5,3 +5,10 @@ task\_motor module
    :members:
    :show-inheritance:
    :undoc-members:
+
+Full source
+-----------
+
+.. literalinclude:: ../../src/task_motor.py
+   :language: python
+   :linenos:

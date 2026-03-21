@@ -5,3 +5,10 @@ task\_crash module
    :members:
    :show-inheritance:
    :undoc-members:
+
+Full source
+-----------
+
+.. literalinclude:: ../../src/task_crash.py
+   :language: python
+   :linenos:

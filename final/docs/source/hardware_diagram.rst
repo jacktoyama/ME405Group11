@@ -13,3 +13,8 @@ feedback is used for closed-loop control.
    :width: 600px
    :align: center
    :alt: Hardware diagram of the system
+
+Parts
+-----
+Besides the Romi kit and the provided IMU (BNO055) we used 2 Bump sensor kits with only 1 sensor installed per-side,
+as well as the QTRX 7 Sensor 8mm spacing line sensor. Both were purchased from Pololu.
