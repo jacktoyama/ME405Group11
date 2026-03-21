@@ -9,18 +9,17 @@ ME405 Term Project
 Overview
 --------
 
-This project implements a multitasking embedded system using cooperative scheduling
-on an STM32 microcontroller. The system controls motors, reads sensors, and executes
-closed-loop control.
+This project implements a dual motor robot conrolled by a Nucle STM32 microcontroller. 
+Using a variety of sensors, the robot runs through a obstacle course style track.
 
 
 Key Features
 ------------
-
-- Cooperative multitasking with shared variables
-- Motor driver and encoder feedback
-- Real-time control system
-- Modular driver/task architecture
+- Line sensing
+- Wall detection with bump sensors
+- IMU state estimation
+- Wireless control
+- Variable speed
 
 Contents
 --------
